@@ -1,0 +1,149 @@
+name: Deploy dedicated Netlify prospect
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - "prospects/**"
+
+permissions:
+  contents: write
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Resolve prospect
+        id: prospect
+        shell: bash
+        run: |
+          set -euo pipefail
+          CHANGED=$(git diff --name-only HEAD^ HEAD || true)
+          SLUG=$(printf '%s\n' "$CHANGED" | awk -F/ '/^prospects\/[^/]+\// {print $2; exit}')
+          test -n "$SLUG"
+          META="prospects/$SLUG/prospect.json"
+          test -f "$META"
+          DISPLAY_NAME=$(jq -r '.display_name' "$META")
+          SITE_NAME=$(jq -r '.site_name' "$META")
+          EXPECTED_TEXT=$(jq -r '.expected_text' "$META")
+          echo "slug=$SLUG" >> "$GITHUB_OUTPUT"
+          echo "display_name=$DISPLAY_NAME" >> "$GITHUB_OUTPUT"
+          echo "site_name=$SITE_NAME" >> "$GITHUB_OUTPUT"
+          echo "expected_text=$EXPECTED_TEXT" >> "$GITHUB_OUTPUT"
+
+      - name: Validate Netlify token
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${NETLIFY_AUTH_TOKEN:-}"
+          curl -fsS -H "Authorization: Bearer $NETLIFY_AUTH_TOKEN" https://api.netlify.com/api/v1/user >/tmp/netlify-user.json
+          jq -e '.id' /tmp/netlify-user.json >/dev/null
+
+      - name: Resolve or create dedicated Netlify site
+        id: site
+        shell: bash
+        run: |
+          set -euo pipefail
+          SLUG='${{ steps.prospect.outputs.slug }}'
+          REQUESTED='${{ steps.prospect.outputs.site_name }}'
+          STATUS="deploy-status/$SLUG.json"
+
+          if [ -f "$STATUS" ] && jq -e '.site_id' "$STATUS" >/dev/null 2>&1; then
+            SITE_ID=$(jq -r '.site_id' "$STATUS")
+            SITE_URL=$(jq -r '.url' "$STATUS")
+            SITE_NAME=$(jq -r '.site_name' "$STATUS")
+          else
+            SITE_ID=""
+            SITE_URL=""
+            SITE_NAME=""
+            for CANDIDATE in "$REQUESTED" "${REQUESTED}-24" "${REQUESTED}-dordogne" "${REQUESTED}-$(date +%y%m%d%H%M)"; do
+              BODY=$(jq -nc --arg name "$CANDIDATE" '{name:$name}')
+              RESPONSE=$(curl -sS -w '\n%{http_code}' -X POST \
+                -H "Authorization: Bearer $NETLIFY_AUTH_TOKEN" \
+                -H "Content-Type: application/json" \
+                -d "$BODY" \
+                https://api.netlify.com/api/v1/sites)
+              CODE=$(printf '%s\n' "$RESPONSE" | tail -n1)
+              JSON=$(printf '%s\n' "$RESPONSE" | sed '$d')
+              if [ "$CODE" = "200" ] || [ "$CODE" = "201" ]; then
+                SITE_ID=$(printf '%s' "$JSON" | jq -r '.id')
+                SITE_NAME=$(printf '%s' "$JSON" | jq -r '.name')
+                SITE_URL=$(printf '%s' "$JSON" | jq -r '.ssl_url // .url')
+                break
+              fi
+            done
+            test -n "$SITE_ID"
+          fi
+
+          echo "site_id=$SITE_ID" >> "$GITHUB_OUTPUT"
+          echo "site_name=$SITE_NAME" >> "$GITHUB_OUTPUT"
+          echo "site_url=$SITE_URL" >> "$GITHUB_OUTPUT"
+
+      - name: Deploy prospect to Netlify
+        id: deploy
+        shell: bash
+        run: |
+          set -euo pipefail
+          SLUG='${{ steps.prospect.outputs.slug }}'
+          SITE_ID='${{ steps.site.outputs.site_id }}'
+          npx --yes netlify-cli@latest deploy \
+            --dir="prospects/$SLUG" \
+            --site="$SITE_ID" \
+            --auth="$NETLIFY_AUTH_TOKEN" \
+            --prod \
+            --json > /tmp/netlify-deploy.json
+          cat /tmp/netlify-deploy.json
+
+      - name: Verify public URL
+        shell: bash
+        run: |
+          set -euo pipefail
+          SLUG='${{ steps.prospect.outputs.slug }}'
+          SITE_ID='${{ steps.site.outputs.site_id }}'
+          SITE_NAME='${{ steps.site.outputs.site_name }}'
+          EXPECTED='${{ steps.prospect.outputs.expected_text }}'
+          URL='${{ steps.site.outputs.site_url }}'
+          if [ -z "$URL" ] || [ "$URL" = "null" ]; then
+            URL="https://${SITE_NAME}.netlify.app"
+          fi
+          OK=false
+          CODE="000"
+          for i in {1..30}; do
+            CODE=$(curl -L -sS -o /tmp/prospect-page.html -w "%{http_code}" --max-time 30 "$URL" || true)
+            if [ "$CODE" = "200" ] && grep -Fqi "$EXPECTED" /tmp/prospect-page.html; then
+              OK=true
+              break
+            fi
+            sleep 5
+          done
+          test "$OK" = "true"
+          mkdir -p deploy-status
+          jq -n \
+            --arg prospect '${{ steps.prospect.outputs.display_name }}' \
+            --arg slug "$SLUG" \
+            --arg site_id "$SITE_ID" \
+            --arg site_name "$SITE_NAME" \
+            --arg url "$URL" \
+            --arg verified_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            --argjson http_status 200 \
+            '{prospect:$prospect,slug:$slug,site_id:$site_id,site_name:$site_name,url:$url,http_status:$http_status,content_verified:true,verified_at:$verified_at}' \
+            > "deploy-status/$SLUG.json"
+
+      - name: Save deployment result
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "prospector-bot"
+          git config user.email "prospector-bot@users.noreply.github.com"
+          git add "deploy-status/${{ steps.prospect.outputs.slug }}.json"
+          if ! git diff --cached --quiet; then
+            git commit -m "Verify dedicated Netlify preview for ${{ steps.prospect.outputs.display_name }}"
+            git push
+          fi
