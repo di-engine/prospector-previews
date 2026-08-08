@@ -98,7 +98,7 @@ jobs:
           echo "site_name=$SITE_NAME" >> "$GITHUB_OUTPUT"
           echo "site_url=$SITE_URL" >> "$GITHUB_OUTPUT"
 
-      - name: Create ZIP deploy
+      - name: Create ZIP deploy with HTML headers
         id: deploy
         shell: bash
         run: |
@@ -106,9 +106,21 @@ jobs:
           SLUG='${{ steps.prospect.outputs.slug }}'
           SITE_ID='${{ steps.site.outputs.site_id }}'
           test -f "prospects/$SLUG/index.html"
-          cd "prospects/$SLUG"
-          zip -q /tmp/prospect-site.zip index.html
+
+          rm -rf /tmp/prospect-site
+          mkdir -p /tmp/prospect-site
+          cp "prospects/$SLUG/index.html" /tmp/prospect-site/index.html
+          cat > /tmp/prospect-site/_headers <<'EOF'
+          /
+            Content-Type: text/html; charset=UTF-8
+          /index.html
+            Content-Type: text/html; charset=UTF-8
+          EOF
+
+          cd /tmp/prospect-site
+          zip -q /tmp/prospect-site.zip index.html _headers
           cd - >/dev/null
+
           DEPLOY_CODE=$(curl -sS -o /tmp/deploy.json -w "%{http_code}" -X POST \
             -H "Authorization: Bearer $NETLIFY_AUTH_TOKEN" \
             -H "Content-Type: application/zip" \
@@ -135,7 +147,7 @@ jobs:
           done
           test "$READY" = "true"
 
-      - name: Verify public site and save status
+      - name: Verify public site MIME, content and save status
         shell: bash
         run: |
           set -euo pipefail
@@ -145,12 +157,23 @@ jobs:
           URL='${{ steps.site.outputs.site_url }}'
           EXPECTED='${{ steps.prospect.outputs.expected_text }}'
           OK=false
+          CODE="000"
+          TYPE=""
+
           for i in {1..24}; do
-            CODE=$(curl -L -sS -o /tmp/public.html -w "%{http_code}" --max-time 30 "$URL" || true)
-            if [ "$CODE" = "200" ] && grep -Fqi "$EXPECTED" /tmp/public.html; then OK=true; break; fi
+            RESULT=$(curl -L -sS -o /tmp/public.html -w "%{http_code}\n%{content_type}" --max-time 30 "$URL" || true)
+            CODE=$(printf '%s\n' "$RESULT" | sed -n '1p')
+            TYPE=$(printf '%s\n' "$RESULT" | sed -n '2p')
+            if [ "$CODE" = "200" ] && [[ "$TYPE" == text/html* ]] && grep -Fqi "$EXPECTED" /tmp/public.html; then
+              OK=true
+              break
+            fi
             sleep 5
           done
+
+          echo "HTTP=$CODE Content-Type=$TYPE"
           test "$OK" = "true"
+
           mkdir -p deploy-status
           jq -n \
             --arg prospect '${{ steps.prospect.outputs.display_name }}' \
@@ -158,8 +181,9 @@ jobs:
             --arg site_id "$SITE_ID" \
             --arg site_name "$SITE_NAME" \
             --arg url "$URL" \
+            --arg content_type "$TYPE" \
             --arg verified_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-            '{prospect:$prospect,slug:$slug,site_id:$site_id,site_name:$site_name,url:$url,http_status:200,content_verified:true,verified_at:$verified_at}' \
+            '{prospect:$prospect,slug:$slug,site_id:$site_id,site_name:$site_name,url:$url,http_status:200,content_type:$content_type,content_verified:true,verified_at:$verified_at}' \
             > "deploy-status/$SLUG.json"
 
       - name: Save deployment result
