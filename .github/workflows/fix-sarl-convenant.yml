@@ -1,6 +1,7 @@
 name: Diagnose SARL CONVENANT Netlify rendering
 
 on:
+  workflow_dispatch:
   push:
     branches: ["main"]
     paths:
