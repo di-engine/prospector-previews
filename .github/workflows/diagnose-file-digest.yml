@@ -1,0 +1,93 @@
+name: Diagnose Netlify file digest
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - "prospects/sarl-convenant/prospect.json"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    env:
+      NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+      SITE_ID: c69eb6ca-308d-4dbe-a29a-2688c892f945
+      SITE_URL: https://sarl-convenant.netlify.app
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run file-digest diagnostics
+        shell: bash
+        run: |
+          set +e
+          mkdir -p /tmp/site deploy-status
+          cp prospects/sarl-convenant/index.html /tmp/site/index.html
+          printf '/\n  Content-Type: text/html; charset=UTF-8\n/index.html\n  Content-Type: text/html; charset=UTF-8\n' >/tmp/site/_headers
+          INDEX_SHA=$(sha1sum /tmp/site/index.html | awk '{print $1}')
+          HEADERS_SHA=$(sha1sum /tmp/site/_headers | awk '{print $1}')
+          BODY=$(jq -nc --arg i "$INDEX_SHA" --arg h "$HEADERS_SHA" '{files:{"/index.html":$i,"/_headers":$h}}')
+
+          CREATE_CODE=$(curl -sS -o /tmp/deploy.json -w "%{http_code}" -X POST \
+            -H "Authorization: Bearer $NETLIFY_AUTH_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d "$BODY" \
+            "https://api.netlify.com/api/v1/sites/$SITE_ID/deploys")
+          DEPLOY_ID=$(jq -r '.id // empty' /tmp/deploy.json 2>/dev/null)
+          REQUIRED=$(jq -c '.required // []' /tmp/deploy.json 2>/dev/null)
+          INDEX_PUT="not_attempted"
+          HEADERS_PUT="not_attempted"
+          FINAL_STATE="unknown"
+
+          if [ -n "$DEPLOY_ID" ]; then
+            if printf '%s' "$REQUIRED" | grep -q "$INDEX_SHA"; then
+              INDEX_PUT=$(curl -sS -o /tmp/index-put.out -w "%{http_code}" -X PUT \
+                -H "Authorization: Bearer $NETLIFY_AUTH_TOKEN" \
+                -H "Content-Type: application/octet-stream" \
+                --data-binary @/tmp/site/index.html \
+                "https://api.netlify.com/api/v1/deploys/$DEPLOY_ID/files/index.html")
+            fi
+            if printf '%s' "$REQUIRED" | grep -q "$HEADERS_SHA"; then
+              HEADERS_PUT=$(curl -sS -o /tmp/headers-put.out -w "%{http_code}" -X PUT \
+                -H "Authorization: Bearer $NETLIFY_AUTH_TOKEN" \
+                -H "Content-Type: application/octet-stream" \
+                --data-binary @/tmp/site/_headers \
+                "https://api.netlify.com/api/v1/deploys/$DEPLOY_ID/files/_headers")
+            fi
+            for i in {1..12}; do
+              curl -sS -H "Authorization: Bearer $NETLIFY_AUTH_TOKEN" "https://api.netlify.com/api/v1/deploys/$DEPLOY_ID" >/tmp/state.json
+              FINAL_STATE=$(jq -r '.state // "unknown"' /tmp/state.json)
+              [ "$FINAL_STATE" = "ready" ] && break
+              [ "$FINAL_STATE" = "error" ] && break
+              sleep 5
+            done
+          fi
+
+          RESULT=$(curl -L -sS -o /tmp/public.html -w "%{http_code}\n%{content_type}" --max-time 30 "$SITE_URL")
+          HTTP_CODE=$(printf '%s\n' "$RESULT" | sed -n '1p')
+          CONTENT_TYPE=$(printf '%s\n' "$RESULT" | sed -n '2p')
+          if [ "$HTTP_CODE" = "200" ] && [[ "$CONTENT_TYPE" == text/html* ]] && grep -Fqi 'SARL CONVENANT' /tmp/public.html; then RENDERING_OK=true; else RENDERING_OK=false; fi
+
+          jq -n \
+            --arg create_code "$CREATE_CODE" \
+            --arg deploy_id "$DEPLOY_ID" \
+            --argjson required "${REQUIRED:-[]}" \
+            --arg index_put "$INDEX_PUT" \
+            --arg headers_put "$HEADERS_PUT" \
+            --arg final_state "$FINAL_STATE" \
+            --arg http_code "$HTTP_CODE" \
+            --arg content_type "$CONTENT_TYPE" \
+            --argjson rendering_ok "$RENDERING_OK" \
+            --arg checked_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            '{create_code:$create_code,deploy_id:$deploy_id,required:$required,index_put:$index_put,headers_put:$headers_put,final_state:$final_state,http_code:$http_code,content_type:$content_type,rendering_ok:$rendering_ok,checked_at:$checked_at}' \
+            > deploy-status/sarl-convenant-file-digest-debug.json
+      - name: Save diagnostics
+        shell: bash
+        run: |
+          git config user.name "prospector-bot"
+          git config user.email "prospector-bot@users.noreply.github.com"
+          git add deploy-status/sarl-convenant-file-digest-debug.json
+          git commit -m "Record SARL CONVENANT file-digest diagnostics" || exit 0
+          git push
