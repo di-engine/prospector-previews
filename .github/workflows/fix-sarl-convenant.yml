@@ -1,4 +1,4 @@
-name: Fix SARL CONVENANT Netlify rendering
+name: Diagnose SARL CONVENANT Netlify rendering
 
 on:
   push:
@@ -10,7 +10,7 @@ permissions:
   contents: write
 
 jobs:
-  fix:
+  diagnose:
     runs-on: ubuntu-latest
     env:
       NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
@@ -18,51 +18,72 @@ jobs:
       SITE_URL: https://sarl-convenant.netlify.app
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-      - name: Prepare clean static site
+      - name: Prepare site
         shell: bash
         run: |
-          set -euo pipefail
           rm -rf /tmp/sarl-site
           mkdir -p /tmp/sarl-site
           cp prospects/sarl-convenant/index.html /tmp/sarl-site/index.html
           printf '/\n  Content-Type: text/html; charset=UTF-8\n/index.html\n  Content-Type: text/html; charset=UTF-8\n' > /tmp/sarl-site/_headers
 
-      - name: Deploy with official Netlify CLI
+      - name: Deploy and collect diagnostics
         shell: bash
         run: |
-          set -euo pipefail
-          npx --yes netlify-cli@latest deploy --dir=/tmp/sarl-site --site="$SITE_ID" --auth="$NETLIFY_AUTH_TOKEN" --prod --json >/tmp/deploy.json
-          cat /tmp/deploy.json
+          set +e
+          test -n "${NETLIFY_AUTH_TOKEN:-}"
+          TOKEN_PRESENT=$?
 
-      - name: Verify browser rendering headers
-        shell: bash
-        run: |
-          set -euo pipefail
-          OK=false
-          TYPE=""
-          CODE="000"
-          for i in {1..24}; do
-            RESULT=$(curl -L -sS -o /tmp/page.html -w "%{http_code}\n%{content_type}" --max-time 30 "$SITE_URL" || true)
-            CODE=$(printf '%s\n' "$RESULT" | sed -n '1p')
-            TYPE=$(printf '%s\n' "$RESULT" | sed -n '2p')
-            if [ "$CODE" = "200" ] && [[ "$TYPE" == text/html* ]] && grep -Fqi 'SARL CONVENANT' /tmp/page.html; then
-              OK=true
-              break
-            fi
-            sleep 5
-          done
-          echo "HTTP=$CODE Content-Type=$TYPE"
-          test "$OK" = "true"
+          npx --yes netlify-cli@latest deploy \
+            --dir=/tmp/sarl-site \
+            --site="$SITE_ID" \
+            --auth="$NETLIFY_AUTH_TOKEN" \
+            --prod \
+            --json >/tmp/deploy-output.json 2>/tmp/deploy-error.txt
+          CLI_EXIT=$?
+
+          sleep 10
+          RESULT=$(curl -L -sS -o /tmp/page.html -w "%{http_code}\n%{content_type}" --max-time 30 "$SITE_URL" 2>/tmp/curl-error.txt)
+          CURL_EXIT=$?
+          HTTP_CODE=$(printf '%s\n' "$RESULT" | sed -n '1p')
+          CONTENT_TYPE=$(printf '%s\n' "$RESULT" | sed -n '2p')
+
+          if grep -Fqi 'SARL CONVENANT' /tmp/page.html 2>/dev/null; then BODY_MATCH=true; else BODY_MATCH=false; fi
+          if [ "$HTTP_CODE" = "200" ] && [[ "$CONTENT_TYPE" == text/html* ]] && [ "$BODY_MATCH" = "true" ]; then RENDER_OK=true; else RENDER_OK=false; fi
+
+          DEPLOY_SUMMARY=$(tr '\n' ' ' </tmp/deploy-output.json 2>/dev/null | head -c 1200)
+          DEPLOY_ERROR=$(tr '\n' ' ' </tmp/deploy-error.txt 2>/dev/null | head -c 1200)
+          CURL_ERROR=$(tr '\n' ' ' </tmp/curl-error.txt 2>/dev/null | head -c 600)
+
           mkdir -p deploy-status
-          jq -n --arg content_type "$TYPE" --arg verified_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" '{prospect:"SARL CONVENANT",slug:"sarl-convenant",site_id:"c69eb6ca-308d-4dbe-a29a-2688c892f945",site_name:"sarl-convenant",url:"https://sarl-convenant.netlify.app",http_status:200,content_type:$content_type,content_verified:true,rendering_verified:true,verified_at:$verified_at}' > deploy-status/sarl-convenant.json
+          jq -n \
+            --argjson token_present "$([ "$TOKEN_PRESENT" = "0" ] && echo true || echo false)" \
+            --argjson cli_exit "$CLI_EXIT" \
+            --argjson curl_exit "$CURL_EXIT" \
+            --arg http_code "${HTTP_CODE:-}" \
+            --arg content_type "${CONTENT_TYPE:-}" \
+            --argjson body_match "$BODY_MATCH" \
+            --argjson rendering_ok "$RENDER_OK" \
+            --arg deploy_summary "$DEPLOY_SUMMARY" \
+            --arg deploy_error "$DEPLOY_ERROR" \
+            --arg curl_error "$CURL_ERROR" \
+            --arg checked_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            '{token_present:$token_present,cli_exit:$cli_exit,curl_exit:$curl_exit,http_code:$http_code,content_type:$content_type,body_match:$body_match,rendering_ok:$rendering_ok,deploy_summary:$deploy_summary,deploy_error:$deploy_error,curl_error:$curl_error,checked_at:$checked_at}' \
+            > deploy-status/sarl-convenant-debug.json
 
-      - name: Save strict validation
-        shell: bash
-        run: |
-          set -euo pipefail
           git config user.name "prospector-bot"
           git config user.email "prospector-bot@users.noreply.github.com"
-          git add deploy-status/sarl-convenant.json
-          git commit -m "Strictly verify SARL CONVENANT HTML rendering" || exit 0
-          git push
+          git add deploy-status/sarl-convenant-debug.json
+          git commit -m "Record SARL CONVENANT Netlify diagnostics" || true
+          git push || true
+
+          if [ "$RENDER_OK" = "true" ]; then
+            jq -n --arg content_type "$CONTENT_TYPE" --arg verified_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" '{prospect:"SARL CONVENANT",slug:"sarl-convenant",site_id:"c69eb6ca-308d-4dbe-a29a-2688c892f945",site_name:"sarl-convenant",url:"https://sarl-convenant.netlify.app",http_status:200,content_type:$content_type,content_verified:true,rendering_verified:true,verified_at:$verified_at}' > deploy-status/sarl-convenant.json
+            git add deploy-status/sarl-convenant.json
+            git commit -m "Strictly verify SARL CONVENANT HTML rendering" || true
+            git push || true
+          fi
+
+          exit 0
