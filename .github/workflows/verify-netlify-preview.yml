@@ -1,0 +1,41 @@
+name: Verify Netlify preview
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - "beau-energie/**"
+
+permissions:
+  contents: write
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Wait for Netlify deploy
+        run: sleep 45
+
+      - name: Verify BEAU ENERGIE preview
+        id: verify
+        shell: bash
+        run: |
+          set -e
+          URL="https://elertim.netlify.app/beau-energie/"
+          HTTP_CODE=$(curl -L -sS -o /tmp/page.html -w "%{http_code}" --max-time 30 "$URL")
+          echo "HTTP $HTTP_CODE"
+          test "$HTTP_CODE" = "200"
+          grep -qi "BEAU ENERGIE" /tmp/page.html
+          mkdir -p deploy-status
+          printf '{"prospect":"BEAU ENERGIE","url":"%s","http_status":200,"content_verified":true,"verified_at":"%s"}\n' "$URL" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > deploy-status/beau-energie.json
+
+      - name: Save verification result
+        run: |
+          git config user.name "prospector-bot"
+          git config user.email "prospector-bot@users.noreply.github.com"
+          git add deploy-status/beau-energie.json
+          git commit -m "Verify BEAU ENERGIE Netlify preview" || exit 0
+          git push
