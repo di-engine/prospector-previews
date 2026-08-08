@@ -43,10 +43,10 @@ jobs:
         run: |
           set -euo pipefail
           test -n "${NETLIFY_AUTH_TOKEN:-}"
-          curl -fsS -H "Authorization: Bearer $NETLIFY_AUTH_TOKEN" https://api.netlify.com/api/v1/user >/tmp/netlify-user.json
+          curl -fsS -H "Authorization: Bearer $NETLIFY_AUTH_TOKEN" https://api.netlify.com/api/v1/user > /tmp/netlify-user.json
           jq -e '.id' /tmp/netlify-user.json >/dev/null
 
-      - name: Resolve or create dedicated Netlify site
+      - name: Resolve or create Netlify project
         id: site
         shell: bash
         run: |
@@ -54,73 +54,100 @@ jobs:
           SLUG='${{ steps.prospect.outputs.slug }}'
           REQUESTED='${{ steps.prospect.outputs.site_name }}'
           STATUS="deploy-status/$SLUG.json"
+          SITE_ID=""
+          SITE_NAME=""
+          SITE_URL=""
 
           if [ -f "$STATUS" ] && jq -e '.site_id' "$STATUS" >/dev/null 2>&1; then
             SITE_ID=$(jq -r '.site_id' "$STATUS")
-            SITE_URL=$(jq -r '.url' "$STATUS")
             SITE_NAME=$(jq -r '.site_name' "$STATUS")
+            SITE_URL=$(jq -r '.url' "$STATUS")
           else
-            SITE_ID=""
-            SITE_URL=""
-            SITE_NAME=""
             for CANDIDATE in "$REQUESTED" "${REQUESTED}-24" "${REQUESTED}-dordogne" "${REQUESTED}-$(date +%y%m%d%H%M)"; do
+              LOOKUP_CODE=$(curl -sS -o /tmp/site-lookup.json -w "%{http_code}" \
+                -H "Authorization: Bearer $NETLIFY_AUTH_TOKEN" \
+                "https://api.netlify.com/api/v1/sites/${CANDIDATE}.netlify.app" || true)
+              if [ "$LOOKUP_CODE" = "200" ]; then
+                SITE_ID=$(jq -r '.id' /tmp/site-lookup.json)
+                SITE_NAME=$(jq -r '.name' /tmp/site-lookup.json)
+                SITE_URL=$(jq -r '.ssl_url // .url' /tmp/site-lookup.json)
+                break
+              fi
+
               BODY=$(jq -nc --arg name "$CANDIDATE" '{name:$name}')
-              RESPONSE=$(curl -sS -w '\n%{http_code}' -X POST \
+              CREATE_CODE=$(curl -sS -o /tmp/site-create.json -w "%{http_code}" -X POST \
                 -H "Authorization: Bearer $NETLIFY_AUTH_TOKEN" \
                 -H "Content-Type: application/json" \
                 -d "$BODY" \
-                https://api.netlify.com/api/v1/sites)
-              CODE=$(printf '%s\n' "$RESPONSE" | tail -n1)
-              JSON=$(printf '%s\n' "$RESPONSE" | sed '$d')
-              if [ "$CODE" = "200" ] || [ "$CODE" = "201" ]; then
-                SITE_ID=$(printf '%s' "$JSON" | jq -r '.id')
-                SITE_NAME=$(printf '%s' "$JSON" | jq -r '.name')
-                SITE_URL=$(printf '%s' "$JSON" | jq -r '.ssl_url // .url')
+                https://api.netlify.com/api/v1/sites || true)
+              if [ "$CREATE_CODE" = "200" ] || [ "$CREATE_CODE" = "201" ]; then
+                SITE_ID=$(jq -r '.id' /tmp/site-create.json)
+                SITE_NAME=$(jq -r '.name' /tmp/site-create.json)
+                SITE_URL=$(jq -r '.ssl_url // .url' /tmp/site-create.json)
                 break
               fi
             done
-            test -n "$SITE_ID"
           fi
 
+          test -n "$SITE_ID"
+          test -n "$SITE_NAME"
+          if [ -z "$SITE_URL" ] || [ "$SITE_URL" = "null" ]; then
+            SITE_URL="https://${SITE_NAME}.netlify.app"
+          fi
           echo "site_id=$SITE_ID" >> "$GITHUB_OUTPUT"
           echo "site_name=$SITE_NAME" >> "$GITHUB_OUTPUT"
           echo "site_url=$SITE_URL" >> "$GITHUB_OUTPUT"
 
-      - name: Deploy prospect to Netlify
+      - name: Create ZIP deploy
         id: deploy
         shell: bash
         run: |
           set -euo pipefail
           SLUG='${{ steps.prospect.outputs.slug }}'
           SITE_ID='${{ steps.site.outputs.site_id }}'
-          npx --yes netlify-cli@latest deploy \
-            --dir="prospects/$SLUG" \
-            --site="$SITE_ID" \
-            --auth="$NETLIFY_AUTH_TOKEN" \
-            --prod \
-            --json > /tmp/netlify-deploy.json
-          cat /tmp/netlify-deploy.json
+          test -f "prospects/$SLUG/index.html"
+          cd "prospects/$SLUG"
+          zip -q /tmp/prospect-site.zip index.html
+          cd - >/dev/null
+          DEPLOY_CODE=$(curl -sS -o /tmp/deploy.json -w "%{http_code}" -X POST \
+            -H "Authorization: Bearer $NETLIFY_AUTH_TOKEN" \
+            -H "Content-Type: application/zip" \
+            --data-binary @/tmp/prospect-site.zip \
+            "https://api.netlify.com/api/v1/sites/$SITE_ID/deploys")
+          test "$DEPLOY_CODE" = "200" -o "$DEPLOY_CODE" = "201"
+          DEPLOY_ID=$(jq -r '.id' /tmp/deploy.json)
+          test -n "$DEPLOY_ID"
+          echo "deploy_id=$DEPLOY_ID" >> "$GITHUB_OUTPUT"
 
-      - name: Verify public URL
+      - name: Wait for Netlify deploy ready
+        shell: bash
+        run: |
+          set -euo pipefail
+          DEPLOY_ID='${{ steps.deploy.outputs.deploy_id }}'
+          READY=false
+          for i in {1..36}; do
+            curl -fsS -H "Authorization: Bearer $NETLIFY_AUTH_TOKEN" \
+              "https://api.netlify.com/api/v1/deploys/$DEPLOY_ID" > /tmp/deploy-state.json
+            STATE=$(jq -r '.state' /tmp/deploy-state.json)
+            if [ "$STATE" = "ready" ]; then READY=true; break; fi
+            if [ "$STATE" = "error" ]; then cat /tmp/deploy-state.json; exit 1; fi
+            sleep 5
+          done
+          test "$READY" = "true"
+
+      - name: Verify public site and save status
         shell: bash
         run: |
           set -euo pipefail
           SLUG='${{ steps.prospect.outputs.slug }}'
           SITE_ID='${{ steps.site.outputs.site_id }}'
           SITE_NAME='${{ steps.site.outputs.site_name }}'
-          EXPECTED='${{ steps.prospect.outputs.expected_text }}'
           URL='${{ steps.site.outputs.site_url }}'
-          if [ -z "$URL" ] || [ "$URL" = "null" ]; then
-            URL="https://${SITE_NAME}.netlify.app"
-          fi
+          EXPECTED='${{ steps.prospect.outputs.expected_text }}'
           OK=false
-          CODE="000"
-          for i in {1..30}; do
-            CODE=$(curl -L -sS -o /tmp/prospect-page.html -w "%{http_code}" --max-time 30 "$URL" || true)
-            if [ "$CODE" = "200" ] && grep -Fqi "$EXPECTED" /tmp/prospect-page.html; then
-              OK=true
-              break
-            fi
+          for i in {1..24}; do
+            CODE=$(curl -L -sS -o /tmp/public.html -w "%{http_code}" --max-time 30 "$URL" || true)
+            if [ "$CODE" = "200" ] && grep -Fqi "$EXPECTED" /tmp/public.html; then OK=true; break; fi
             sleep 5
           done
           test "$OK" = "true"
@@ -132,8 +159,7 @@ jobs:
             --arg site_name "$SITE_NAME" \
             --arg url "$URL" \
             --arg verified_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-            --argjson http_status 200 \
-            '{prospect:$prospect,slug:$slug,site_id:$site_id,site_name:$site_name,url:$url,http_status:$http_status,content_verified:true,verified_at:$verified_at}' \
+            '{prospect:$prospect,slug:$slug,site_id:$site_id,site_name:$site_name,url:$url,http_status:200,content_verified:true,verified_at:$verified_at}' \
             > "deploy-status/$SLUG.json"
 
       - name: Save deployment result
