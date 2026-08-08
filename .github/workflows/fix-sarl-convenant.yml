@@ -1,0 +1,68 @@
+name: Fix SARL CONVENANT Netlify rendering
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - "prospects/sarl-convenant/redeploy.txt"
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    env:
+      NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+      SITE_ID: c69eb6ca-308d-4dbe-a29a-2688c892f945
+      SITE_URL: https://sarl-convenant.netlify.app
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Prepare clean static site
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/sarl-site
+          mkdir -p /tmp/sarl-site
+          cp prospects/sarl-convenant/index.html /tmp/sarl-site/index.html
+          printf '/\n  Content-Type: text/html; charset=UTF-8\n/index.html\n  Content-Type: text/html; charset=UTF-8\n' > /tmp/sarl-site/_headers
+
+      - name: Deploy with official Netlify CLI
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx --yes netlify-cli@latest deploy --dir=/tmp/sarl-site --site="$SITE_ID" --auth="$NETLIFY_AUTH_TOKEN" --prod --json >/tmp/deploy.json
+          cat /tmp/deploy.json
+
+      - name: Verify browser rendering headers
+        shell: bash
+        run: |
+          set -euo pipefail
+          OK=false
+          TYPE=""
+          CODE="000"
+          for i in {1..24}; do
+            RESULT=$(curl -L -sS -o /tmp/page.html -w "%{http_code}\n%{content_type}" --max-time 30 "$SITE_URL" || true)
+            CODE=$(printf '%s\n' "$RESULT" | sed -n '1p')
+            TYPE=$(printf '%s\n' "$RESULT" | sed -n '2p')
+            if [ "$CODE" = "200" ] && [[ "$TYPE" == text/html* ]] && grep -Fqi 'SARL CONVENANT' /tmp/page.html; then
+              OK=true
+              break
+            fi
+            sleep 5
+          done
+          echo "HTTP=$CODE Content-Type=$TYPE"
+          test "$OK" = "true"
+          mkdir -p deploy-status
+          jq -n --arg content_type "$TYPE" --arg verified_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" '{prospect:"SARL CONVENANT",slug:"sarl-convenant",site_id:"c69eb6ca-308d-4dbe-a29a-2688c892f945",site_name:"sarl-convenant",url:"https://sarl-convenant.netlify.app",http_status:200,content_type:$content_type,content_verified:true,rendering_verified:true,verified_at:$verified_at}' > deploy-status/sarl-convenant.json
+
+      - name: Save strict validation
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "prospector-bot"
+          git config user.email "prospector-bot@users.noreply.github.com"
+          git add deploy-status/sarl-convenant.json
+          git commit -m "Strictly verify SARL CONVENANT HTML rendering" || exit 0
+          git push
