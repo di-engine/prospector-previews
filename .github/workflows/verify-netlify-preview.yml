@@ -4,7 +4,7 @@ on:
   push:
     branches: ["main"]
     paths:
-      - "beau-energie/**"
+      - "renova-pose-24/**"
 
 permissions:
   contents: write
@@ -19,23 +19,23 @@ jobs:
       - name: Wait for Netlify deploy
         run: sleep 45
 
-      - name: Verify BEAU ENERGIE preview
+      - name: Verify RENOVA-POSE 24 preview
         id: verify
         shell: bash
         run: |
           set -e
-          URL="https://elertim.netlify.app/beau-energie/"
+          URL="https://elertim.netlify.app/renova-pose-24/"
           HTTP_CODE=$(curl -L -sS -o /tmp/page.html -w "%{http_code}" --max-time 30 "$URL")
           echo "HTTP $HTTP_CODE"
           test "$HTTP_CODE" = "200"
-          grep -qi "BEAU ENERGIE" /tmp/page.html
+          grep -qi "RENOVA-POSE 24" /tmp/page.html
           mkdir -p deploy-status
-          printf '{"prospect":"BEAU ENERGIE","url":"%s","http_status":200,"content_verified":true,"verified_at":"%s"}\n' "$URL" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > deploy-status/beau-energie.json
+          printf '{"prospect":"RENOVA-POSE 24","url":"%s","http_status":200,"content_verified":true,"verified_at":"%s"}\n' "$URL" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > deploy-status/renova-pose-24.json
 
       - name: Save verification result
         run: |
           git config user.name "prospector-bot"
           git config user.email "prospector-bot@users.noreply.github.com"
-          git add deploy-status/beau-energie.json
-          git commit -m "Verify BEAU ENERGIE Netlify preview" || exit 0
+          git add deploy-status/renova-pose-24.json
+          git commit -m "Verify RENOVA-POSE 24 Netlify preview" || exit 0
           git push
