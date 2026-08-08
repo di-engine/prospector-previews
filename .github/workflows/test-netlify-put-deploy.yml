@@ -1,0 +1,56 @@
+name: Test Netlify PUT site deploy
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - "prospects/sarl-convenant/put-redeploy.txt"
+
+permissions:
+  contents: write
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    env:
+      NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+      SITE_ID: c69eb6ca-308d-4dbe-a29a-2688c892f945
+      SITE_URL: https://sarl-convenant.netlify.app
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test PUT deploy and record result
+        shell: bash
+        run: |
+          set +e
+          rm -rf /tmp/site && mkdir -p /tmp/site deploy-status
+          cp prospects/sarl-convenant/index.html /tmp/site/index.html
+          printf '/\n  Content-Type: text/html; charset=UTF-8\n/index.html\n  Content-Type: text/html; charset=UTF-8\n' >/tmp/site/_headers
+          (cd /tmp/site && zip -q /tmp/site.zip index.html _headers)
+          PUT_CODE=$(curl -sS -o /tmp/put.json -w "%{http_code}" -X PUT \
+            -H "Authorization: Bearer $NETLIFY_AUTH_TOKEN" \
+            -H "Content-Type: application/zip" \
+            --data-binary @/tmp/site.zip \
+            "https://api.netlify.com/api/v1/sites/$SITE_ID")
+          sleep 15
+          RESULT=$(curl -L -sS -o /tmp/public.html -w "%{http_code}\n%{content_type}" --max-time 30 "$SITE_URL")
+          HTTP_CODE=$(printf '%s\n' "$RESULT" | sed -n '1p')
+          CONTENT_TYPE=$(printf '%s\n' "$RESULT" | sed -n '2p')
+          if [ "$HTTP_CODE" = "200" ] && [[ "$CONTENT_TYPE" == text/html* ]] && grep -Fqi 'SARL CONVENANT' /tmp/public.html; then RENDERING_OK=true; else RENDERING_OK=false; fi
+          RESPONSE=$(cat /tmp/put.json 2>/dev/null | head -c 1000)
+          jq -n \
+            --arg put_code "$PUT_CODE" \
+            --arg response "$RESPONSE" \
+            --arg http_code "$HTTP_CODE" \
+            --arg content_type "$CONTENT_TYPE" \
+            --argjson rendering_ok "$RENDERING_OK" \
+            --arg checked_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            '{put_code:$put_code,response:$response,http_code:$http_code,content_type:$content_type,rendering_ok:$rendering_ok,checked_at:$checked_at}' \
+            > deploy-status/sarl-convenant-put-debug.json
+      - name: Save result
+        shell: bash
+        run: |
+          git config user.name "prospector-bot"
+          git config user.email "prospector-bot@users.noreply.github.com"
+          git add deploy-status/sarl-convenant-put-debug.json
+          git commit -m "Record SARL CONVENANT Netlify PUT diagnostics" || exit 0
+          git push
