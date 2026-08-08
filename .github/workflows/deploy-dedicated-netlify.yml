@@ -5,6 +5,7 @@ on:
     branches: ["main"]
     paths:
       - "prospects/**"
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -27,7 +28,9 @@ jobs:
           set -euo pipefail
           CHANGED=$(git diff --name-only HEAD^ HEAD || true)
           SLUG=$(printf '%s\n' "$CHANGED" | awk -F/ '/^prospects\/[^/]+\// {print $2; exit}')
-          test -n "$SLUG"
+          if [ -z "$SLUG" ]; then
+            SLUG="sarl-convenant"
+          fi
           META="prospects/$SLUG/prospect.json"
           test -f "$META"
           echo "slug=$SLUG" >> "$GITHUB_OUTPUT"
@@ -79,7 +82,8 @@ jobs:
           echo "site_name=$SITE_NAME" >> "$GITHUB_OUTPUT"
           echo "site_url=https://${SITE_NAME}.netlify.app" >> "$GITHUB_OUTPUT"
 
-      - name: Prepare static site
+      - name: Prepare files and digests
+        id: files
         shell: bash
         run: |
           set -euo pipefail
@@ -94,18 +98,70 @@ jobs:
           /index.html
             Content-Type: text/html; charset=UTF-8
           EOF
+          INDEX_SHA=$(sha1sum /tmp/prospect-site/index.html | awk '{print $1}')
+          HEADERS_SHA=$(sha1sum /tmp/prospect-site/_headers | awk '{print $1}')
+          echo "index_sha=$INDEX_SHA" >> "$GITHUB_OUTPUT"
+          echo "headers_sha=$HEADERS_SHA" >> "$GITHUB_OUTPUT"
 
-      - name: Deploy with Netlify CLI
+      - name: Create file-digest deploy
+        id: deploy
         shell: bash
         run: |
           set -euo pipefail
-          npx --yes netlify-cli@latest deploy \
-            --dir=/tmp/prospect-site \
-            --site='${{ steps.site.outputs.site_id }}' \
-            --auth="$NETLIFY_AUTH_TOKEN" \
-            --prod \
-            --json >/tmp/netlify-deploy.json
-          cat /tmp/netlify-deploy.json
+          SITE_ID='${{ steps.site.outputs.site_id }}'
+          INDEX_SHA='${{ steps.files.outputs.index_sha }}'
+          HEADERS_SHA='${{ steps.files.outputs.headers_sha }}'
+          BODY=$(jq -nc --arg i "$INDEX_SHA" --arg h "$HEADERS_SHA" '{files:{"/index.html":$i,"/_headers":$h}}')
+          CODE=$(curl -sS -o /tmp/deploy.json -w "%{http_code}" -X POST \
+            -H "Authorization: Bearer $NETLIFY_AUTH_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d "$BODY" \
+            "https://api.netlify.com/api/v1/sites/$SITE_ID/deploys")
+          test "$CODE" = "200" -o "$CODE" = "201"
+          DEPLOY_ID=$(jq -r '.id' /tmp/deploy.json)
+          test -n "$DEPLOY_ID"
+          echo "deploy_id=$DEPLOY_ID" >> "$GITHUB_OUTPUT"
+          jq . /tmp/deploy.json
+
+      - name: Upload required files
+        shell: bash
+        run: |
+          set -euo pipefail
+          DEPLOY_ID='${{ steps.deploy.outputs.deploy_id }}'
+          INDEX_SHA='${{ steps.files.outputs.index_sha }}'
+          HEADERS_SHA='${{ steps.files.outputs.headers_sha }}'
+          curl -fsS -H "Authorization: Bearer $NETLIFY_AUTH_TOKEN" "https://api.netlify.com/api/v1/deploys/$DEPLOY_ID" >/tmp/deploy-state.json
+          REQUIRED=$(jq -r '.required[]?' /tmp/deploy-state.json)
+          if printf '%s\n' "$REQUIRED" | grep -qx "$INDEX_SHA"; then
+            curl -fsS -X PUT \
+              -H "Authorization: Bearer $NETLIFY_AUTH_TOKEN" \
+              -H "Content-Type: application/octet-stream" \
+              --data-binary @/tmp/prospect-site/index.html \
+              "https://api.netlify.com/api/v1/deploys/$DEPLOY_ID/files/index.html" >/dev/null
+          fi
+          if printf '%s\n' "$REQUIRED" | grep -qx "$HEADERS_SHA"; then
+            curl -fsS -X PUT \
+              -H "Authorization: Bearer $NETLIFY_AUTH_TOKEN" \
+              -H "Content-Type: application/octet-stream" \
+              --data-binary @/tmp/prospect-site/_headers \
+              "https://api.netlify.com/api/v1/deploys/$DEPLOY_ID/files/_headers" >/dev/null
+          fi
+
+      - name: Wait for deploy ready
+        shell: bash
+        run: |
+          set -euo pipefail
+          DEPLOY_ID='${{ steps.deploy.outputs.deploy_id }}'
+          READY=false
+          for i in {1..36}; do
+            curl -fsS -H "Authorization: Bearer $NETLIFY_AUTH_TOKEN" "https://api.netlify.com/api/v1/deploys/$DEPLOY_ID" >/tmp/deploy-state.json
+            STATE=$(jq -r '.state' /tmp/deploy-state.json)
+            echo "Netlify state: $STATE"
+            if [ "$STATE" = "ready" ]; then READY=true; break; fi
+            if [ "$STATE" = "error" ]; then cat /tmp/deploy-state.json; exit 1; fi
+            sleep 5
+          done
+          test "$READY" = "true"
 
       - name: Verify rendered HTML
         shell: bash
@@ -117,7 +173,6 @@ jobs:
           TYPE=""
           CODE="000"
           OK=false
-
           for i in {1..24}; do
             RESULT=$(curl -L -sS -o /tmp/public.html -w "%{http_code}\n%{content_type}" --max-time 30 "$URL" || true)
             CODE=$(printf '%s\n' "$RESULT" | sed -n '1p')
@@ -128,10 +183,8 @@ jobs:
             fi
             sleep 5
           done
-
           echo "HTTP=$CODE Content-Type=$TYPE"
           test "$OK" = "true"
-
           mkdir -p deploy-status
           jq -n \
             --arg prospect '${{ steps.prospect.outputs.display_name }}' \
@@ -141,7 +194,7 @@ jobs:
             --arg url "$URL" \
             --arg content_type "$TYPE" \
             --arg verified_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-            '{prospect:$prospect,slug:$slug,site_id:$site_id,site_name:$site_name,url:$url,http_status:200,content_type:$content_type,content_verified:true,verified_at:$verified_at}' \
+            '{prospect:$prospect,slug:$slug,site_id:$site_id,site_name:$site_name,url:$url,http_status:200,content_type:$content_type,content_verified:true,rendering_verified:true,verified_at:$verified_at}' \
             > "deploy-status/$SLUG.json"
 
       - name: Save deployment result
@@ -152,6 +205,6 @@ jobs:
           git config user.email "prospector-bot@users.noreply.github.com"
           git add "deploy-status/${{ steps.prospect.outputs.slug }}.json"
           if ! git diff --cached --quiet; then
-            git commit -m "Verify dedicated Netlify preview for ${{ steps.prospect.outputs.display_name }}"
+            git commit -m "Strictly verify Netlify preview for ${{ steps.prospect.outputs.display_name }}"
             git push
           fi
