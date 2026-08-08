@@ -1,0 +1,8 @@
+{
+  "put_code": "200",
+  "response": "{\"id\":\"c69eb6ca-308d-4dbe-a29a-2688c892f945\",\"deploy_id\":\"6a774dafbec049b4ab0caf0d\",\"subdomain\":\"sarl-convenant\",\"url\":\"http://6a774dafbec049b4ab0caf0d--sarl-convenant.netlify.app\",\"state\":\"uploaded\",\"required\":[]}",
+  "http_code": "200",
+  "content_type": "text/html; charset=UTF-8",
+  "rendering_ok": true,
+  "checked_at": "2026-08-08T15:39:43Z"
+}
