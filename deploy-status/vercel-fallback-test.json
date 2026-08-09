@@ -1,0 +1,14 @@
+{
+  "token_present": false,
+  "upload_code": "000",
+  "deploy_code": "000",
+  "deploy_id": "",
+  "url": "",
+  "state": "unknown",
+  "http_code": "000",
+  "content_type": "",
+  "rendering_ok": false,
+  "upload_error": "",
+  "deploy_error": "",
+  "checked_at": "2026-08-09T11:40:55Z"
+}
