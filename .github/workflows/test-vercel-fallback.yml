@@ -18,7 +18,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Deploy test page to Vercel
+      - name: Deploy and verify public production URL
         shell: bash
         run: |
           set -u
@@ -29,15 +29,16 @@ jobs:
 
           TOKEN_PRESENT=false
           [ -n "${VERCEL_TOKEN:-}" ] && TOKEN_PRESENT=true
-
           UPLOAD_CODE="000"
           DEPLOY_CODE="000"
           DEPLOY_ID=""
-          DEPLOY_URL=""
+          UNIQUE_URL=""
+          PUBLIC_URL=""
           STATE="unknown"
           HTTP_CODE="000"
           CONTENT_TYPE=""
           RENDERING_OK=false
+          ALIASES=""
 
           if [ "$TOKEN_PRESENT" = "true" ]; then
             UPLOAD_CODE=$(curl -sS -o /tmp/upload.json -w "%{http_code}" -X POST \
@@ -58,7 +59,8 @@ jobs:
               if [ "$DEPLOY_CODE" = "200" ] || [ "$DEPLOY_CODE" = "201" ]; then
                 DEPLOY_ID=$(jq -r '.id // empty' /tmp/deploy.json)
                 HOST=$(jq -r '.url // empty' /tmp/deploy.json)
-                [ -n "$HOST" ] && DEPLOY_URL="https://$HOST"
+                [ -n "$HOST" ] && UNIQUE_URL="https://$HOST"
+
                 for i in {1..30}; do
                   curl -sS -o /tmp/state.json -H "Authorization: Bearer $VERCEL_TOKEN" "https://api.vercel.com/v13/deployments/$DEPLOY_ID" || true
                   STATE=$(jq -r '.readyState // .status // "unknown"' /tmp/state.json 2>/dev/null || echo unknown)
@@ -66,13 +68,35 @@ jobs:
                   [ "$STATE" = "ERROR" ] && break
                   sleep 4
                 done
-                if [ "$STATE" = "READY" ] && [ -n "$DEPLOY_URL" ]; then
-                  RESULT=$(curl -L -sS -o /tmp/page.html -w "%{http_code}\n%{content_type}" --max-time 30 "$DEPLOY_URL" || true)
-                  HTTP_CODE=$(printf '%s\n' "$RESULT" | sed -n '1p')
-                  CONTENT_TYPE=$(printf '%s\n' "$RESULT" | sed -n '2p')
-                  if [ "$HTTP_CODE" = "200" ] && [[ "$CONTENT_TYPE" == text/html* ]] && grep -Fqi 'SARL CONVENANT' /tmp/page.html; then
-                    RENDERING_OK=true
-                  fi
+
+                if [ "$STATE" = "READY" ]; then
+                  curl -sS -o /tmp/aliases.json -H "Authorization: Bearer $VERCEL_TOKEN" "https://api.vercel.com/v2/deployments/$DEPLOY_ID/aliases" || true
+                  curl -sS -o /tmp/domains.json -H "Authorization: Bearer $VERCEL_TOKEN" "https://api.vercel.com/v9/projects/prospector-fallback-test/domains" || true
+
+                  {
+                    jq -r '.aliases[]? | if type=="string" then . else (.alias // .domain // .name // empty) end' /tmp/aliases.json 2>/dev/null || true
+                    jq -r '.domains[]?.name // empty' /tmp/domains.json 2>/dev/null || true
+                    [ -n "$UNIQUE_URL" ] && echo "$UNIQUE_URL"
+                  } | sed '/^$/d' | awk '!seen[$0]++' > /tmp/candidates.txt
+
+                  ALIASES=$(paste -sd ',' /tmp/candidates.txt 2>/dev/null || true)
+
+                  while IFS= read -r candidate; do
+                    [ -z "$candidate" ] && continue
+                    if [[ "$candidate" != http* ]]; then candidate="https://$candidate"; fi
+                    RESULT=$(curl -L -sS -o /tmp/page.html -w "%{http_code}\n%{content_type}" --max-time 30 "$candidate" || true)
+                    CODE=$(printf '%s\n' "$RESULT" | sed -n '1p')
+                    TYPE=$(printf '%s\n' "$RESULT" | sed -n '2p')
+                    if [ "$CODE" = "200" ] && [[ "$TYPE" == text/html* ]] && grep -Fqi 'SARL CONVENANT' /tmp/page.html; then
+                      PUBLIC_URL="$candidate"
+                      HTTP_CODE="$CODE"
+                      CONTENT_TYPE="$TYPE"
+                      RENDERING_OK=true
+                      break
+                    fi
+                    HTTP_CODE="$CODE"
+                    CONTENT_TYPE="$TYPE"
+                  done < /tmp/candidates.txt
                 fi
               fi
             fi
@@ -85,7 +109,9 @@ jobs:
             --arg upload_code "$UPLOAD_CODE" \
             --arg deploy_code "$DEPLOY_CODE" \
             --arg deploy_id "$DEPLOY_ID" \
-            --arg url "$DEPLOY_URL" \
+            --arg unique_url "$UNIQUE_URL" \
+            --arg public_url "$PUBLIC_URL" \
+            --arg aliases "$ALIASES" \
             --arg state "$STATE" \
             --arg http_code "$HTTP_CODE" \
             --arg content_type "$CONTENT_TYPE" \
@@ -93,7 +119,7 @@ jobs:
             --arg upload_error "$UPLOAD_ERROR" \
             --arg deploy_error "$DEPLOY_ERROR" \
             --arg checked_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-            '{token_present:$token_present,upload_code:$upload_code,deploy_code:$deploy_code,deploy_id:$deploy_id,url:$url,state:$state,http_code:$http_code,content_type:$content_type,rendering_ok:$rendering_ok,upload_error:$upload_error,deploy_error:$deploy_error,checked_at:$checked_at}' > deploy-status/vercel-fallback-test.json
+            '{token_present:$token_present,upload_code:$upload_code,deploy_code:$deploy_code,deploy_id:$deploy_id,unique_url:$unique_url,public_url:$public_url,aliases:$aliases,state:$state,http_code:$http_code,content_type:$content_type,rendering_ok:$rendering_ok,upload_error:$upload_error,deploy_error:$deploy_error,checked_at:$checked_at}' > deploy-status/vercel-fallback-test.json
           cat deploy-status/vercel-fallback-test.json
 
       - name: Save test result
