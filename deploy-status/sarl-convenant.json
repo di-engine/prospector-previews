@@ -1,10 +1,15 @@
 {
   "prospect": "SARL CONVENANT",
   "slug": "sarl-convenant",
-  "site_id": "c69eb6ca-308d-4dbe-a29a-2688c892f945",
-  "site_name": "sarl-convenant",
+  "provider": "Netlify",
   "url": "https://sarl-convenant.netlify.app",
   "http_status": 200,
+  "content_type": "text/html; charset=UTF-8",
   "content_verified": true,
-  "verified_at": "2026-08-08T15:19:33Z"
+  "rendering_verified": true,
+  "netlify_site_id": "c69eb6ca-308d-4dbe-a29a-2688c892f945",
+  "netlify_deploy_id": "6a786a595f47cfbecca75a22",
+  "vercel_project_id": "",
+  "vercel_deploy_id": "",
+  "verified_at": "2026-08-09T11:54:06Z"
 }
