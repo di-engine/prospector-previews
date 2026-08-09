@@ -1,14 +1,14 @@
 {
-  "token_present": false,
-  "upload_code": "000",
-  "deploy_code": "000",
-  "deploy_id": "",
-  "url": "",
-  "state": "unknown",
-  "http_code": "000",
-  "content_type": "",
+  "token_present": true,
+  "upload_code": "200",
+  "deploy_code": "200",
+  "deploy_id": "dpl_AqqdAQohBNEQ2ae8VMhfq9Kp8EQT",
+  "url": "https://prospector-fallback-test-d7dlsfmd4-di-engine1.vercel.app",
+  "state": "READY",
+  "http_code": "200",
+  "content_type": "text/html; charset=utf-8",
   "rendering_ok": false,
   "upload_error": "",
   "deploy_error": "",
-  "checked_at": "2026-08-09T11:40:55Z"
+  "checked_at": "2026-08-09T11:48:44Z"
 }
