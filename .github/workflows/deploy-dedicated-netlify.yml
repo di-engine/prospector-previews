@@ -1,4 +1,4 @@
-name: Deploy dedicated Netlify prospect
+name: Deploy prospect with hosting fallback
 
 on:
   push:
@@ -15,6 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -36,51 +37,7 @@ jobs:
           echo "site_name=$(jq -r '.site_name' "$META")" >> "$GITHUB_OUTPUT"
           echo "expected_text=$(jq -r '.expected_text' "$META")" >> "$GITHUB_OUTPUT"
 
-      - name: Validate Netlify token
-        shell: bash
-        run: |
-          set -euo pipefail
-          test -n "${NETLIFY_AUTH_TOKEN:-}"
-          curl -fsS -H "Authorization: Bearer $NETLIFY_AUTH_TOKEN" https://api.netlify.com/api/v1/user >/tmp/netlify-user.json
-          jq -e '.id' /tmp/netlify-user.json >/dev/null
-
-      - name: Resolve or create dedicated Netlify project
-        id: site
-        shell: bash
-        run: |
-          set -euo pipefail
-          SLUG='${{ steps.prospect.outputs.slug }}'
-          REQUESTED='${{ steps.prospect.outputs.site_name }}'
-          STATUS="deploy-status/$SLUG.json"
-          SITE_ID=""
-          SITE_NAME=""
-
-          if [ -f "$STATUS" ] && jq -e '.site_id' "$STATUS" >/dev/null 2>&1; then
-            SITE_ID=$(jq -r '.site_id' "$STATUS")
-            SITE_NAME=$(jq -r '.site_name' "$STATUS")
-          else
-            for CANDIDATE in "$REQUESTED" "${REQUESTED}-24" "${REQUESTED}-dordogne" "${REQUESTED}-$(date +%y%m%d%H%M)"; do
-              BODY=$(jq -nc --arg name "$CANDIDATE" '{name:$name}')
-              CODE=$(curl -sS -o /tmp/site-create.json -w "%{http_code}" -X POST \
-                -H "Authorization: Bearer $NETLIFY_AUTH_TOKEN" \
-                -H "Content-Type: application/json" \
-                -d "$BODY" \
-                https://api.netlify.com/api/v1/sites || true)
-              if [ "$CODE" = "200" ] || [ "$CODE" = "201" ]; then
-                SITE_ID=$(jq -r '.id' /tmp/site-create.json)
-                SITE_NAME=$(jq -r '.name' /tmp/site-create.json)
-                break
-              fi
-            done
-          fi
-
-          test -n "$SITE_ID"
-          test -n "$SITE_NAME"
-          echo "site_id=$SITE_ID" >> "$GITHUB_OUTPUT"
-          echo "site_name=$SITE_NAME" >> "$GITHUB_OUTPUT"
-          echo "site_url=https://${SITE_NAME}.netlify.app" >> "$GITHUB_OUTPUT"
-
-      - name: Prepare static site archive
+      - name: Prepare static site
         shell: bash
         run: |
           set -euo pipefail
@@ -97,73 +54,229 @@ jobs:
           EOF
           (cd /tmp/prospect-site && zip -q /tmp/prospect-site.zip index.html _headers)
 
-      - name: Deploy with verified Netlify PUT route
-        id: deploy
+      - name: Deploy with Netlify then Vercel fallback
+        id: hosting
         shell: bash
         run: |
-          set -euo pipefail
-          SITE_ID='${{ steps.site.outputs.site_id }}'
-          CODE=$(curl -sS -o /tmp/deploy.json -w "%{http_code}" -X PUT \
-            -H "Authorization: Bearer $NETLIFY_AUTH_TOKEN" \
-            -H "Content-Type: application/zip" \
-            --data-binary @/tmp/prospect-site.zip \
-            "https://api.netlify.com/api/v1/sites/$SITE_ID")
-          test "$CODE" = "200" -o "$CODE" = "201"
-          DEPLOY_ID=$(jq -r '.deploy_id // empty' /tmp/deploy.json)
-          test -n "$DEPLOY_ID"
-          echo "deploy_id=$DEPLOY_ID" >> "$GITHUB_OUTPUT"
-          jq . /tmp/deploy.json
-
-      - name: Wait for Netlify deploy ready
-        shell: bash
-        run: |
-          set -euo pipefail
-          DEPLOY_ID='${{ steps.deploy.outputs.deploy_id }}'
-          READY=false
-          for i in {1..36}; do
-            curl -fsS -H "Authorization: Bearer $NETLIFY_AUTH_TOKEN" "https://api.netlify.com/api/v1/deploys/$DEPLOY_ID" >/tmp/deploy-state.json
-            STATE=$(jq -r '.state // "unknown"' /tmp/deploy-state.json)
-            echo "Netlify state: $STATE"
-            if [ "$STATE" = "ready" ]; then READY=true; break; fi
-            if [ "$STATE" = "error" ]; then cat /tmp/deploy-state.json; exit 1; fi
-            sleep 5
-          done
-          test "$READY" = "true"
-
-      - name: Verify rendered HTML
-        shell: bash
-        run: |
-          set -euo pipefail
+          set -uo pipefail
           SLUG='${{ steps.prospect.outputs.slug }}'
-          URL='${{ steps.site.outputs.site_url }}'
+          DISPLAY_NAME='${{ steps.prospect.outputs.display_name }}'
+          REQUESTED='${{ steps.prospect.outputs.site_name }}'
           EXPECTED='${{ steps.prospect.outputs.expected_text }}'
-          TYPE=""
-          CODE="000"
-          OK=false
-          for i in {1..24}; do
-            RESULT=$(curl -L -sS -o /tmp/public.html -w "%{http_code}\n%{content_type}" --max-time 30 "$URL" || true)
-            CODE=$(printf '%s\n' "$RESULT" | sed -n '1p')
-            TYPE=$(printf '%s\n' "$RESULT" | sed -n '2p')
-            if [ "$CODE" = "200" ] && [[ "$TYPE" == text/html* ]] && grep -Fqi "$EXPECTED" /tmp/public.html; then
-              OK=true
-              break
-            fi
-            sleep 5
-          done
-          echo "HTTP=$CODE Content-Type=$TYPE"
-          test "$OK" = "true"
           mkdir -p deploy-status
-          jq -n \
-            --arg prospect '${{ steps.prospect.outputs.display_name }}' \
-            --arg slug "$SLUG" \
-            --arg site_id '${{ steps.site.outputs.site_id }}' \
-            --arg site_name '${{ steps.site.outputs.site_name }}' \
-            --arg url "$URL" \
-            --arg content_type "$TYPE" \
-            --arg deploy_id '${{ steps.deploy.outputs.deploy_id }}' \
-            --arg verified_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-            '{prospect:$prospect,slug:$slug,site_id:$site_id,site_name:$site_name,url:$url,deploy_id:$deploy_id,http_status:200,content_type:$content_type,content_verified:true,rendering_verified:true,verified_at:$verified_at}' \
-            > "deploy-status/$SLUG.json"
+
+          SUCCESS=false
+          PROVIDER=""
+          FINAL_URL=""
+          CONTENT_TYPE=""
+          NETLIFY_SITE_ID=""
+          NETLIFY_DEPLOY_ID=""
+          VERCEL_PROJECT_ID=""
+          VERCEL_DEPLOY_ID=""
+          NETLIFY_ERROR=""
+          VERCEL_ERROR=""
+
+          verify_url() {
+            local url="$1"
+            local expected="$2"
+            local result code type
+            result=$(curl -L -sS -o /tmp/public.html -w "%{http_code}\n%{content_type}" --max-time 30 "$url" 2>/tmp/verify.err || true)
+            code=$(printf '%s\n' "$result" | sed -n '1p')
+            type=$(printf '%s\n' "$result" | sed -n '2p')
+            CONTENT_TYPE="$type"
+            if [ "$code" = "200" ] && [[ "$type" == text/html* ]] && grep -Fqi "$expected" /tmp/public.html; then
+              return 0
+            fi
+            return 1
+          }
+
+          # 1) Primary hosting: Netlify
+          if [ -n "${NETLIFY_AUTH_TOKEN:-}" ]; then
+            for CANDIDATE in "$REQUESTED" "${REQUESTED}-24" "${REQUESTED}-dordogne" "${REQUESTED}-$(date +%y%m%d%H%M)"; do
+              LOOKUP_CODE=$(curl -sS -o /tmp/netlify-site.json -w "%{http_code}" \
+                -H "Authorization: Bearer $NETLIFY_AUTH_TOKEN" \
+                "https://api.netlify.com/api/v1/sites/${CANDIDATE}.netlify.app" || true)
+              if [ "$LOOKUP_CODE" = "200" ]; then
+                NETLIFY_SITE_ID=$(jq -r '.id // empty' /tmp/netlify-site.json)
+                NETLIFY_SITE_NAME=$(jq -r '.name // empty' /tmp/netlify-site.json)
+                break
+              fi
+
+              BODY=$(jq -nc --arg name "$CANDIDATE" '{name:$name}')
+              CREATE_CODE=$(curl -sS -o /tmp/netlify-site.json -w "%{http_code}" -X POST \
+                -H "Authorization: Bearer $NETLIFY_AUTH_TOKEN" \
+                -H "Content-Type: application/json" \
+                -d "$BODY" \
+                https://api.netlify.com/api/v1/sites || true)
+              if [ "$CREATE_CODE" = "200" ] || [ "$CREATE_CODE" = "201" ]; then
+                NETLIFY_SITE_ID=$(jq -r '.id // empty' /tmp/netlify-site.json)
+                NETLIFY_SITE_NAME=$(jq -r '.name // empty' /tmp/netlify-site.json)
+                break
+              fi
+            done
+
+            if [ -n "$NETLIFY_SITE_ID" ]; then
+              NETLIFY_URL="https://${NETLIFY_SITE_NAME}.netlify.app"
+              DEPLOY_CODE=$(curl -sS -o /tmp/netlify-deploy.json -w "%{http_code}" -X PUT \
+                -H "Authorization: Bearer $NETLIFY_AUTH_TOKEN" \
+                -H "Content-Type: application/zip" \
+                --data-binary @/tmp/prospect-site.zip \
+                "https://api.netlify.com/api/v1/sites/$NETLIFY_SITE_ID" || true)
+
+              if [ "$DEPLOY_CODE" = "200" ] || [ "$DEPLOY_CODE" = "201" ]; then
+                NETLIFY_DEPLOY_ID=$(jq -r '.deploy_id // empty' /tmp/netlify-deploy.json)
+                READY=false
+                if [ -n "$NETLIFY_DEPLOY_ID" ]; then
+                  for i in {1..24}; do
+                    STATE_CODE=$(curl -sS -o /tmp/netlify-state.json -w "%{http_code}" \
+                      -H "Authorization: Bearer $NETLIFY_AUTH_TOKEN" \
+                      "https://api.netlify.com/api/v1/deploys/$NETLIFY_DEPLOY_ID" || true)
+                    STATE=$(jq -r '.state // "unknown"' /tmp/netlify-state.json 2>/dev/null || echo unknown)
+                    if [ "$STATE_CODE" = "200" ] && [ "$STATE" = "ready" ]; then READY=true; break; fi
+                    if [ "$STATE" = "error" ]; then break; fi
+                    sleep 5
+                  done
+                fi
+                if [ "$READY" = "true" ] && verify_url "$NETLIFY_URL" "$EXPECTED"; then
+                  SUCCESS=true
+                  PROVIDER="Netlify"
+                  FINAL_URL="$NETLIFY_URL"
+                else
+                  NETLIFY_ERROR="Netlify deployment or rendering verification failed"
+                fi
+              else
+                NETLIFY_ERROR="Netlify deploy rejected with HTTP $DEPLOY_CODE"
+              fi
+            else
+              NETLIFY_ERROR="Netlify project unavailable or creation rejected"
+            fi
+          else
+            NETLIFY_ERROR="NETLIFY_AUTH_TOKEN unavailable"
+          fi
+
+          # 2) Automatic fallback: Vercel
+          if [ "$SUCCESS" != "true" ]; then
+            if [ -n "${VERCEL_TOKEN:-}" ]; then
+              VERCEL_PROJECT_NAME=""
+              for CANDIDATE in "$REQUESTED" "${REQUESTED}-24" "${REQUESTED}-dordogne" "${REQUESTED}-$(date +%y%m%d%H%M)"; do
+                GET_CODE=$(curl -sS -o /tmp/vercel-project.json -w "%{http_code}" \
+                  -H "Authorization: Bearer $VERCEL_TOKEN" \
+                  "https://api.vercel.com/v9/projects/$CANDIDATE" || true)
+                if [ "$GET_CODE" = "200" ]; then
+                  VERCEL_PROJECT_ID=$(jq -r '.id // empty' /tmp/vercel-project.json)
+                  VERCEL_PROJECT_NAME=$(jq -r '.name // empty' /tmp/vercel-project.json)
+                  break
+                fi
+
+                BODY=$(jq -nc --arg name "$CANDIDATE" '{name:$name,framework:null}')
+                CREATE_CODE=$(curl -sS -o /tmp/vercel-project.json -w "%{http_code}" -X POST \
+                  -H "Authorization: Bearer $VERCEL_TOKEN" \
+                  -H "Content-Type: application/json" \
+                  -d "$BODY" \
+                  https://api.vercel.com/v11/projects || true)
+                if [ "$CREATE_CODE" = "200" ] || [ "$CREATE_CODE" = "201" ]; then
+                  VERCEL_PROJECT_ID=$(jq -r '.id // empty' /tmp/vercel-project.json)
+                  VERCEL_PROJECT_NAME=$(jq -r '.name // empty' /tmp/vercel-project.json)
+                  break
+                fi
+              done
+
+              if [ -n "$VERCEL_PROJECT_ID" ]; then
+                SHA=$(sha1sum /tmp/prospect-site/index.html | awk '{print $1}')
+                SIZE=$(wc -c < /tmp/prospect-site/index.html | tr -d ' ')
+                UPLOAD_CODE=$(curl -sS -o /tmp/vercel-upload.json -w "%{http_code}" -X POST \
+                  -H "Authorization: Bearer $VERCEL_TOKEN" \
+                  -H "x-vercel-digest: $SHA" \
+                  -H "Content-Type: text/html; charset=UTF-8" \
+                  --data-binary @/tmp/prospect-site/index.html \
+                  https://api.vercel.com/v2/files || true)
+
+                if [ "$UPLOAD_CODE" = "200" ] || [ "$UPLOAD_CODE" = "201" ]; then
+                  BODY=$(jq -nc \
+                    --arg name "$VERCEL_PROJECT_NAME" \
+                    --arg project "$VERCEL_PROJECT_ID" \
+                    --arg sha "$SHA" \
+                    --argjson size "$SIZE" \
+                    '{name:$name,project:$project,files:[{file:"index.html",sha:$sha,size:$size}],target:"production",projectSettings:{framework:null}}')
+                  CREATE_DEPLOY_CODE=$(curl -sS -o /tmp/vercel-deploy.json -w "%{http_code}" -X POST \
+                    -H "Authorization: Bearer $VERCEL_TOKEN" \
+                    -H "Content-Type: application/json" \
+                    -d "$BODY" \
+                    https://api.vercel.com/v13/deployments || true)
+
+                  if [ "$CREATE_DEPLOY_CODE" = "200" ] || [ "$CREATE_DEPLOY_CODE" = "201" ]; then
+                    VERCEL_DEPLOY_ID=$(jq -r '.id // empty' /tmp/vercel-deploy.json)
+                    VERCEL_HOST=$(jq -r '.url // empty' /tmp/vercel-deploy.json)
+                    if [ -n "$VERCEL_HOST" ]; then
+                      VERCEL_URL="https://$VERCEL_HOST"
+                    else
+                      VERCEL_URL=""
+                    fi
+
+                    READY=false
+                    if [ -n "$VERCEL_DEPLOY_ID" ]; then
+                      for i in {1..36}; do
+                        STATE_CODE=$(curl -sS -o /tmp/vercel-state.json -w "%{http_code}" \
+                          -H "Authorization: Bearer $VERCEL_TOKEN" \
+                          "https://api.vercel.com/v13/deployments/$VERCEL_DEPLOY_ID" || true)
+                        STATE=$(jq -r '.readyState // .status // .state // "unknown"' /tmp/vercel-state.json 2>/dev/null || echo unknown)
+                        if [ "$STATE_CODE" = "200" ] && [ "$STATE" = "READY" ]; then READY=true; break; fi
+                        if [ "$STATE" = "ERROR" ] || [ "$STATE" = "CANCELED" ]; then break; fi
+                        sleep 5
+                      done
+                    fi
+
+                    if [ "$READY" = "true" ] && [ -n "$VERCEL_URL" ] && verify_url "$VERCEL_URL" "$EXPECTED"; then
+                      SUCCESS=true
+                      PROVIDER="Vercel"
+                      FINAL_URL="$VERCEL_URL"
+                    else
+                      VERCEL_ERROR="Vercel deployment or rendering verification failed"
+                    fi
+                  else
+                    VERCEL_ERROR="Vercel deployment creation rejected with HTTP $CREATE_DEPLOY_CODE"
+                  fi
+                else
+                  VERCEL_ERROR="Vercel file upload rejected with HTTP $UPLOAD_CODE"
+                fi
+              else
+                VERCEL_ERROR="Vercel project unavailable or creation rejected"
+              fi
+            else
+              VERCEL_ERROR="VERCEL_TOKEN unavailable"
+            fi
+          fi
+
+          VERIFIED_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          if [ "$SUCCESS" = "true" ]; then
+            jq -n \
+              --arg prospect "$DISPLAY_NAME" \
+              --arg slug "$SLUG" \
+              --arg provider "$PROVIDER" \
+              --arg url "$FINAL_URL" \
+              --arg content_type "$CONTENT_TYPE" \
+              --arg netlify_site_id "$NETLIFY_SITE_ID" \
+              --arg netlify_deploy_id "$NETLIFY_DEPLOY_ID" \
+              --arg vercel_project_id "$VERCEL_PROJECT_ID" \
+              --arg vercel_deploy_id "$VERCEL_DEPLOY_ID" \
+              --arg verified_at "$VERIFIED_AT" \
+              '{prospect:$prospect,slug:$slug,provider:$provider,url:$url,http_status:200,content_type:$content_type,content_verified:true,rendering_verified:true,netlify_site_id:$netlify_site_id,netlify_deploy_id:$netlify_deploy_id,vercel_project_id:$vercel_project_id,vercel_deploy_id:$vercel_deploy_id,verified_at:$verified_at}' \
+              > "deploy-status/$SLUG.json"
+          else
+            jq -n \
+              --arg prospect "$DISPLAY_NAME" \
+              --arg slug "$SLUG" \
+              --arg netlify_error "$NETLIFY_ERROR" \
+              --arg vercel_error "$VERCEL_ERROR" \
+              --arg checked_at "$VERIFIED_AT" \
+              '{prospect:$prospect,slug:$slug,provider:null,url:null,content_verified:false,rendering_verified:false,netlify_error:$netlify_error,vercel_error:$vercel_error,checked_at:$checked_at}' \
+              > "deploy-status/$SLUG.json"
+          fi
+
+          echo "success=$SUCCESS" >> "$GITHUB_OUTPUT"
+          echo "provider=$PROVIDER" >> "$GITHUB_OUTPUT"
+          echo "url=$FINAL_URL" >> "$GITHUB_OUTPUT"
+          cat "deploy-status/$SLUG.json"
 
       - name: Save deployment result
         shell: bash
@@ -173,6 +286,13 @@ jobs:
           git config user.email "prospector-bot@users.noreply.github.com"
           git add "deploy-status/${{ steps.prospect.outputs.slug }}.json"
           if ! git diff --cached --quiet; then
-            git commit -m "Verify dedicated Netlify preview for ${{ steps.prospect.outputs.display_name }}"
+            git commit -m "Record hosting result for ${{ steps.prospect.outputs.display_name }}"
             git push
           fi
+
+      - name: Block outreach when both hosts fail
+        if: steps.hosting.outputs.success != 'true'
+        shell: bash
+        run: |
+          echo "Neither Netlify nor Vercel produced a verified public HTML site."
+          exit 1
