@@ -2,13 +2,15 @@
   "token_present": true,
   "upload_code": "200",
   "deploy_code": "200",
-  "deploy_id": "dpl_AqqdAQohBNEQ2ae8VMhfq9Kp8EQT",
-  "url": "https://prospector-fallback-test-d7dlsfmd4-di-engine1.vercel.app",
+  "deploy_id": "dpl_96gVfrL697KFwdEDsVUvzoQGLdBu",
+  "unique_url": "https://prospector-fallback-test-pttb8ot24-di-engine1.vercel.app",
+  "public_url": "https://prospector-fallback-test.vercel.app",
+  "aliases": "prospector-fallback-test-di-engine-di-engine1.vercel.app,prospector-fallback-test-di-engine1.vercel.app,prospector-fallback-test.vercel.app,https://prospector-fallback-test-pttb8ot24-di-engine1.vercel.app",
   "state": "READY",
   "http_code": "200",
   "content_type": "text/html; charset=utf-8",
-  "rendering_ok": false,
+  "rendering_ok": true,
   "upload_error": "",
   "deploy_error": "",
-  "checked_at": "2026-08-09T11:48:44Z"
+  "checked_at": "2026-08-09T11:51:08Z"
 }
