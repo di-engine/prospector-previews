@@ -6,7 +6,7 @@
   "headers_put": "not_attempted",
   "final_state": "unknown",
   "http_code": "200",
-  "content_type": "text/plain; charset=UTF-8",
-  "rendering_ok": false,
-  "checked_at": "2026-08-08T15:37:25Z"
+  "content_type": "text/html; charset=UTF-8",
+  "rendering_ok": true,
+  "checked_at": "2026-08-09T11:38:04Z"
 }
