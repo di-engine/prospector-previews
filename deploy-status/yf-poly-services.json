@@ -1,0 +1,15 @@
+{
+  "prospect": "YF POLY-SERVICES",
+  "slug": "yf-poly-services",
+  "provider": "Netlify",
+  "url": "https://yf-poly-services.netlify.app",
+  "http_status": 200,
+  "content_type": "text/html; charset=UTF-8",
+  "content_verified": true,
+  "rendering_verified": true,
+  "netlify_site_id": "6c66e260-f500-4f69-aee1-1e85f1a8fa9b",
+  "netlify_deploy_id": "6a796c710c71a01a6bc3209e",
+  "vercel_project_id": "",
+  "vercel_deploy_id": "",
+  "verified_at": "2026-08-10T06:15:19Z"
+}
