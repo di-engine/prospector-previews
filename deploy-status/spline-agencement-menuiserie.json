@@ -1,0 +1,15 @@
+{
+  "prospect": "SPLINE AGENCEMENT MENUISERIE",
+  "slug": "spline-agencement-menuiserie",
+  "provider": "Netlify",
+  "url": "https://spline-agencement-menuiserie.netlify.app",
+  "http_status": 200,
+  "content_type": "text/html; charset=UTF-8",
+  "content_verified": true,
+  "rendering_verified": true,
+  "netlify_site_id": "956f8dfc-ea18-4110-9621-ea9c71afc5f5",
+  "netlify_deploy_id": "6a796c48db3b90dac8abdb36",
+  "vercel_project_id": "",
+  "vercel_deploy_id": "",
+  "verified_at": "2026-08-10T06:14:38Z"
+}
