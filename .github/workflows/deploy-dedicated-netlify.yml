@@ -64,10 +64,16 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          STATUS="deploy-status/${{ steps.prospect.outputs.slug }}.json"
+          test -f "$STATUS"
+          cp "$STATUS" /tmp/prospector-status.json
+          git reset --hard HEAD
           git config user.name "prospector-bot"
           git config user.email "prospector-bot@users.noreply.github.com"
           git pull --rebase origin main
-          git add "deploy-status/${{ steps.prospect.outputs.slug }}.json"
+          mkdir -p "$(dirname "$STATUS")"
+          cp /tmp/prospector-status.json "$STATUS"
+          git add "$STATUS"
           if ! git diff --cached --quiet; then
             git commit -m "Record hosting result for ${{ steps.prospect.outputs.display_name }}"
             git push
