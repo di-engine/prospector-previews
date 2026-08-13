@@ -1,0 +1,15 @@
+{
+  "prospect": "LEHERICY MENUISERIE",
+  "slug": "lehericy-menuiserie",
+  "provider": "Vercel",
+  "url": "https://lehericy-menuiserie.vercel.app",
+  "http_status": 200,
+  "content_type": "text/html; charset=utf-8",
+  "content_verified": true,
+  "rendering_verified": true,
+  "netlify_site_id": "",
+  "netlify_deploy_id": "",
+  "vercel_project_id": "prj_FdEOWYLnrmgbL4GlJvd6QoqQr7sY",
+  "vercel_deploy_id": "dpl_Fh8AturKqusyU4EpC1U3n5xVx7WK",
+  "verified_at": "2026-08-13T08:08:38Z"
+}
