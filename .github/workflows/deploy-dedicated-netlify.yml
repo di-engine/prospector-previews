@@ -10,6 +10,10 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: prospector-deploy
+  cancel-in-progress: false
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
@@ -62,6 +66,7 @@ jobs:
           set -euo pipefail
           git config user.name "prospector-bot"
           git config user.email "prospector-bot@users.noreply.github.com"
+          git pull --rebase origin main
           git add "deploy-status/${{ steps.prospect.outputs.slug }}.json"
           if ! git diff --cached --quiet; then
             git commit -m "Record hosting result for ${{ steps.prospect.outputs.display_name }}"
