@@ -1,15 +1,11 @@
 {
-  "prospect": "E.P.C PRO",
+  "prospect": "E.P.CPRO",
   "slug": "epc-pro",
-  "provider": "Netlify",
-  "url": "https://epc-pro-24.netlify.app",
-  "http_status": 200,
-  "content_type": "text/html; charset=UTF-8",
-  "content_verified": true,
-  "rendering_verified": true,
-  "netlify_site_id": "aea36930-e1c7-4615-97ab-8cae06353ce6",
-  "netlify_deploy_id": "6a7d7c0cd75069fd55a2f49e",
-  "vercel_project_id": "",
-  "vercel_deploy_id": "",
-  "verified_at": "2026-08-13T08:10:58Z"
+  "provider": null,
+  "url": null,
+  "content_verified": false,
+  "rendering_verified": false,
+  "netlify_error": "Netlify deployment or rendering verification failed",
+  "vercel_error": "Vercel deployment ready but no public alias passed rendering verification",
+  "checked_at": "2026-08-13T10:12:50Z"
 }
