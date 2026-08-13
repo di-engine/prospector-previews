@@ -3,15 +3,26 @@ set -uo pipefail
 
 SLUG="${1:?prospect slug required}"
 META="prospects/$SLUG/prospect.json"
+INDEX="prospects/$SLUG/index.html"
 STATUS="deploy-status/$SLUG.json"
-test -f "$META" || { echo "Missing $META"; exit 2; }
+test -f "$INDEX" || { echo "Missing $INDEX"; exit 2; }
 
-DISPLAY_NAME=$(jq -r '.display_name' "$META")
-REQUESTED=$(jq -r '.site_name' "$META")
-EXPECTED=$(jq -r '.expected_text' "$META")
+if [ -f "$META" ]; then
+  DISPLAY_NAME=$(jq -r '.display_name // empty' "$META")
+  REQUESTED=$(jq -r '.site_name // empty' "$META")
+  EXPECTED=$(jq -r '.expected_text // empty' "$META")
+else
+  DISPLAY_NAME=$(sed -n 's:.*<h1[^>]*>\(.*\)</h1>.*:\1:p' "$INDEX" | head -1 | sed 's/<[^>]*>//g')
+  REQUESTED="$SLUG"
+  EXPECTED="$DISPLAY_NAME"
+fi
+[ -n "$DISPLAY_NAME" ] || DISPLAY_NAME="$SLUG"
+[ -n "$REQUESTED" ] || REQUESTED="$SLUG"
+[ -n "$EXPECTED" ] || EXPECTED="$DISPLAY_NAME"
+
 mkdir -p deploy-status /tmp/prospect-site
 rm -rf /tmp/prospect-site/*
-cp "prospects/$SLUG/index.html" /tmp/prospect-site/index.html
+cp "$INDEX" /tmp/prospect-site/index.html
 cat > /tmp/prospect-site/_headers <<'EOF'
 /
   Content-Type: text/html; charset=UTF-8
@@ -39,7 +50,6 @@ verify_url() {
   [ "$code" = "200" ] && [[ "$type" == text/html* ]] && grep -Fqi "$expected" /tmp/public.html
 }
 
-# Primary: Netlify
 if [ -n "${NETLIFY_AUTH_TOKEN:-}" ]; then
   NETLIFY_SITE_NAME=""
   for CANDIDATE in "$REQUESTED" "${REQUESTED}-24" "${REQUESTED}-dordogne" "${REQUESTED}-$(date +%y%m%d%H%M)"; do
@@ -87,7 +97,6 @@ else
   NETLIFY_ERROR="NETLIFY_AUTH_TOKEN unavailable"
 fi
 
-# Fallback: Vercel
 if [ -z "$FINAL_URL" ]; then
   if [ -n "${VERCEL_TOKEN:-}" ]; then
     VERCEL_PROJECT_NAME=""
@@ -145,7 +154,6 @@ if [ -z "$FINAL_URL" ]; then
               fi
             done < /tmp/vercel-candidates.txt
           fi
-
           [ -n "$FINAL_URL" ] || VERCEL_ERROR="Vercel deployment ready but no public alias passed rendering verification"
         else
           VERCEL_ERROR="Vercel deployment creation rejected with HTTP $DEPLOY_CODE"
