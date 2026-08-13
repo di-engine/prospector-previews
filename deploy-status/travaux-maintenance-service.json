@@ -1,0 +1,15 @@
+{
+  "prospect": "TRAVAUX MAINTENANCE SERVICE",
+  "slug": "travaux-maintenance-service",
+  "provider": "Netlify",
+  "url": "https://travaux-maintenance-service.netlify.app",
+  "http_status": 200,
+  "content_type": "text/html; charset=UTF-8",
+  "content_verified": true,
+  "rendering_verified": true,
+  "netlify_site_id": "b85482e4-d9d5-421b-b168-a56ac167c477",
+  "netlify_deploy_id": "6a7d7c1dc08eccda3930abd0",
+  "vercel_project_id": "",
+  "vercel_deploy_id": "",
+  "verified_at": "2026-08-13T08:11:16Z"
+}
