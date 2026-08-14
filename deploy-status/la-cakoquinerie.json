@@ -1,0 +1,15 @@
+{
+  "prospect": "LA CAKOQUINERIE",
+  "slug": "la-cakoquinerie",
+  "provider": "Netlify",
+  "url": "https://la-cakoquinerie.netlify.app",
+  "http_status": 200,
+  "content_type": "text/html; charset=UTF-8",
+  "content_verified": true,
+  "rendering_verified": true,
+  "netlify_site_id": "1c4896dc-4c08-46dc-a2aa-c663ece7208a",
+  "netlify_deploy_id": "6a7ecbc867e67a9807b451fa",
+  "vercel_project_id": "",
+  "vercel_deploy_id": "",
+  "verified_at": "2026-08-14T08:03:26Z"
+}
