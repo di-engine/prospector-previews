@@ -1,0 +1,15 @@
+{
+  "prospect": "MILENA BARTEAU — CÉRAMISTE",
+  "slug": "milena-barteau-ceramiste",
+  "provider": "Netlify",
+  "url": "https://milena-barteau-ceramiste.netlify.app",
+  "http_status": 200,
+  "content_type": "text/html; charset=UTF-8",
+  "content_verified": true,
+  "rendering_verified": true,
+  "netlify_site_id": "8080a5dc-3c2a-4d61-87ef-e9eb1f3b66db",
+  "netlify_deploy_id": "6a7ecc0798c6f1af76c46edf",
+  "vercel_project_id": "",
+  "vercel_deploy_id": "",
+  "verified_at": "2026-08-14T08:04:28Z"
+}
