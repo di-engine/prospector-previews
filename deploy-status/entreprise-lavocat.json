@@ -1,0 +1,15 @@
+{
+  "prospect": "ENTREPRISE LAVOCAT",
+  "slug": "entreprise-lavocat",
+  "provider": "Netlify",
+  "url": "https://entreprise-lavocat.netlify.app",
+  "http_status": 200,
+  "content_type": "text/html; charset=UTF-8",
+  "content_verified": true,
+  "rendering_verified": true,
+  "netlify_site_id": "4106ce69-1e54-4a3b-b46a-9a6a90df509e",
+  "netlify_deploy_id": "6a7ecba129866a08a0e52c74",
+  "vercel_project_id": "",
+  "vercel_deploy_id": "",
+  "verified_at": "2026-08-14T08:02:47Z"
+}
