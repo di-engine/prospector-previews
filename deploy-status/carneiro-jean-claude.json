@@ -1,0 +1,15 @@
+{
+  "prospect": "CARNEIRO JEAN CLAUDE",
+  "slug": "carneiro-jean-claude",
+  "provider": "Vercel",
+  "url": "https://carneiro-jean-claude.vercel.app",
+  "http_status": 200,
+  "content_type": "text/html; charset=utf-8",
+  "content_verified": true,
+  "rendering_verified": true,
+  "netlify_site_id": "6d48be24-e56f-4dbc-9c0d-170de0d69494",
+  "netlify_deploy_id": "",
+  "vercel_project_id": "prj_oYpICL5EuBW0OJ0hjzu9V7R2vzy4",
+  "vercel_deploy_id": "dpl_2J5u6VZn1hevqZGynZxdCapmgWg3",
+  "verified_at": "2026-08-15T08:03:44Z"
+}
