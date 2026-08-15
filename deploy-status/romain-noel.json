@@ -1,0 +1,15 @@
+{
+  "prospect": "ROMAIN NOEL",
+  "slug": "romain-noel",
+  "provider": "Netlify",
+  "url": "https://romain-noel.netlify.app",
+  "http_status": 200,
+  "content_type": "text/html; charset=UTF-8",
+  "content_verified": true,
+  "rendering_verified": true,
+  "netlify_site_id": "c42f0e0f-b838-4a19-9b93-0c92b836a768",
+  "netlify_deploy_id": "6a801d8279f9a6c3e597c471",
+  "vercel_project_id": "",
+  "vercel_deploy_id": "",
+  "verified_at": "2026-08-15T08:04:24Z"
+}
