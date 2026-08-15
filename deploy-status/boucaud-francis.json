@@ -1,0 +1,15 @@
+{
+  "prospect": "BOUCAUD FRANCIS",
+  "slug": "boucaud-francis",
+  "provider": "Netlify",
+  "url": "https://boucaud-francis.netlify.app",
+  "http_status": 200,
+  "content_type": "text/html; charset=UTF-8",
+  "content_verified": true,
+  "rendering_verified": true,
+  "netlify_site_id": "2d315ce2-3e32-4c03-8f6c-fb7f92fc6ee3",
+  "netlify_deploy_id": "6a801d343cd2119a0c07054a",
+  "vercel_project_id": "",
+  "vercel_deploy_id": "",
+  "verified_at": "2026-08-15T08:03:06Z"
+}
