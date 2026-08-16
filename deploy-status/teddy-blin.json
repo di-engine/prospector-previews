@@ -1,0 +1,15 @@
+{
+  "prospect": "L’eau, du sanitaire à la piscine.",
+  "slug": "teddy-blin",
+  "provider": "Netlify",
+  "url": "https://teddy-blin.netlify.app",
+  "http_status": 200,
+  "content_type": "text/html; charset=UTF-8",
+  "content_verified": true,
+  "rendering_verified": true,
+  "netlify_site_id": "794a12bd-1a8c-4d8b-a1b2-b87ee2d2ebc7",
+  "netlify_deploy_id": "6a816de5e3a232e617236096",
+  "vercel_project_id": "",
+  "vercel_deploy_id": "",
+  "verified_at": "2026-08-16T07:59:39Z"
+}
