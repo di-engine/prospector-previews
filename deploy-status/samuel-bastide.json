@@ -1,0 +1,15 @@
+{
+  "prospect": "Samuel Bastide",
+  "slug": "samuel-bastide",
+  "provider": "Vercel",
+  "url": "https://samuel-bastide-carrelage.vercel.app",
+  "http_status": 200,
+  "content_type": "text/html; charset=utf-8",
+  "content_verified": true,
+  "rendering_verified": true,
+  "netlify_site_id": "9a6d3980-0e6f-4884-93bf-9a00e05c4ef5",
+  "netlify_deploy_id": "6a816e238f8509fc9b456be3",
+  "vercel_project_id": "prj_04GigpvzOiIk8JonrQj8uND4Vi6B",
+  "vercel_deploy_id": "dpl_Fr3potGr7E4xPAsTAbbpvCLswTpC",
+  "verified_at": "2026-08-16T08:01:15Z"
+}
