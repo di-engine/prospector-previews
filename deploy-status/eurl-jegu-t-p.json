@@ -1,0 +1,15 @@
+{
+  "prospect": "EURL JEGU T P",
+  "slug": "eurl-jegu-t-p",
+  "provider": "Netlify",
+  "url": "https://eurl-jegu-t-p.netlify.app",
+  "http_status": 200,
+  "content_type": "text/html; charset=UTF-8",
+  "content_verified": true,
+  "rendering_verified": true,
+  "netlify_site_id": "ad9d2250-69b1-4dc2-beeb-e16203e5fd25",
+  "netlify_deploy_id": "6a82c0974c35c49e18a37a2d",
+  "vercel_project_id": "",
+  "vercel_deploy_id": "",
+  "verified_at": "2026-08-17T08:04:46Z"
+}
