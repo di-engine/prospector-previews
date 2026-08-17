@@ -1,0 +1,15 @@
+{
+  "prospect": "TRAIT'ALU",
+  "slug": "trait-alu",
+  "provider": "Netlify",
+  "url": "https://trait-alu.netlify.app",
+  "http_status": 200,
+  "content_type": "text/html; charset=UTF-8",
+  "content_verified": true,
+  "rendering_verified": true,
+  "netlify_site_id": "9b597002-9925-41d8-9406-bbdf7098a2bf",
+  "netlify_deploy_id": "6a82c1009a55fb6412b88256",
+  "vercel_project_id": "",
+  "vercel_deploy_id": "",
+  "verified_at": "2026-08-17T08:06:30Z"
+}
