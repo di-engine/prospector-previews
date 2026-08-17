@@ -1,0 +1,15 @@
+{
+  "prospect": "Swan Solutions de Propriété",
+  "slug": "swan-solutions-de-propriete",
+  "provider": "Netlify",
+  "url": "https://swan-solutions-de-propriete.netlify.app",
+  "http_status": 200,
+  "content_type": "text/html; charset=UTF-8",
+  "content_verified": true,
+  "rendering_verified": true,
+  "netlify_site_id": "e0f29bd7-3186-4cec-8502-18199715aa8f",
+  "netlify_deploy_id": "6a82c0cc8022941e10d348b3",
+  "vercel_project_id": "",
+  "vercel_deploy_id": "",
+  "verified_at": "2026-08-17T08:05:38Z"
+}
