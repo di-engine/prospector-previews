@@ -1,11 +1,15 @@
 {
-  "prospect": "C.A.G.CCOUVERTURE 24",
+  "prospect": "C.A.G.C COUVERTURE 24",
   "slug": "cagc-couverture-24",
-  "provider": null,
-  "url": null,
-  "content_verified": false,
-  "rendering_verified": false,
-  "netlify_error": "Netlify deployment or rendering verification failed",
-  "vercel_error": "Vercel deployment ready but no public alias passed rendering verification",
-  "checked_at": "2026-08-18T07:58:22Z"
+  "provider": "Netlify",
+  "url": "https://cagc-couverture-24.netlify.app",
+  "http_status": 200,
+  "content_type": "text/html; charset=UTF-8",
+  "content_verified": true,
+  "rendering_verified": true,
+  "netlify_site_id": "87f78700-1072-4163-ade7-58dc80df3aca",
+  "netlify_deploy_id": "6a8410b2d52e490dd278a548",
+  "vercel_project_id": "",
+  "vercel_deploy_id": "",
+  "verified_at": "2026-08-18T07:58:48Z"
 }
