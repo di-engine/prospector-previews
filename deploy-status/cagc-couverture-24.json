@@ -1,0 +1,11 @@
+{
+  "prospect": "C.A.G.CCOUVERTURE 24",
+  "slug": "cagc-couverture-24",
+  "provider": null,
+  "url": null,
+  "content_verified": false,
+  "rendering_verified": false,
+  "netlify_error": "Netlify deployment or rendering verification failed",
+  "vercel_error": "Vercel deployment ready but no public alias passed rendering verification",
+  "checked_at": "2026-08-18T07:58:22Z"
+}
