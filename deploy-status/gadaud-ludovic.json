@@ -1,11 +1,15 @@
 {
-  "prospect": "GADAUDLUDOVIC",
+  "prospect": "GADAUD LUDOVIC",
   "slug": "gadaud-ludovic",
-  "provider": null,
-  "url": null,
-  "content_verified": false,
-  "rendering_verified": false,
-  "netlify_error": "Netlify deployment or rendering verification failed",
-  "vercel_error": "Vercel deployment ready but no public alias passed rendering verification",
-  "checked_at": "2026-08-18T07:59:51Z"
+  "provider": "Netlify",
+  "url": "https://gadaud-ludovic.netlify.app",
+  "http_status": 200,
+  "content_type": "text/html; charset=UTF-8",
+  "content_verified": true,
+  "rendering_verified": true,
+  "netlify_site_id": "17b6fb92-921c-4559-b4e8-66b89627cf38",
+  "netlify_deploy_id": "6a84110fc06bd9f836b72a37",
+  "vercel_project_id": "",
+  "vercel_deploy_id": "",
+  "verified_at": "2026-08-18T08:00:21Z"
 }
