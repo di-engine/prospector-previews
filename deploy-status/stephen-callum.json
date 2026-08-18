@@ -1,0 +1,15 @@
+{
+  "prospect": "STEPHEN CALLUM",
+  "slug": "stephen-callum",
+  "provider": "Netlify",
+  "url": "https://stephen-callum.netlify.app",
+  "http_status": 200,
+  "content_type": "text/html; charset=UTF-8",
+  "content_verified": true,
+  "rendering_verified": true,
+  "netlify_site_id": "be0d50ac-017a-4521-9b49-97000617cb1b",
+  "netlify_deploy_id": "6a84114147c7775f0c41567e",
+  "vercel_project_id": "",
+  "vercel_deploy_id": "",
+  "verified_at": "2026-08-18T08:01:12Z"
+}
