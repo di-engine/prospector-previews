@@ -1,0 +1,15 @@
+{
+  "prospect": "S N PLOMBIER CHAUFFAGISTE",
+  "slug": "sn-plombier-chauffagiste",
+  "provider": "Vercel",
+  "url": "https://sn-plombier-chauffagiste.vercel.app",
+  "http_status": 200,
+  "content_type": "text/html; charset=utf-8",
+  "content_verified": true,
+  "rendering_verified": true,
+  "netlify_site_id": "bbfd3bbb-4d81-4387-946a-e705abc5991b",
+  "netlify_deploy_id": "",
+  "vercel_project_id": "prj_r5zbbIU7EqkLTX4jaanN5aKtwC88",
+  "vercel_deploy_id": "dpl_Dm5E32aQrgM72P8xWXPQJLbqCqsE",
+  "verified_at": "2026-08-19T08:00:37Z"
+}
