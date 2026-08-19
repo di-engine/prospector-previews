@@ -1,0 +1,15 @@
+{
+  "prospect": "LOURENCO NUNES FLORIAN",
+  "slug": "lourenco-nunes-florian",
+  "provider": "Netlify",
+  "url": "https://lourenco-nunes-florian.netlify.app",
+  "http_status": 200,
+  "content_type": "text/html; charset=UTF-8",
+  "content_verified": true,
+  "rendering_verified": true,
+  "netlify_site_id": "4ab1e5d5-a516-47ab-9d21-4cae145daa05",
+  "netlify_deploy_id": "6a85626221c2e345455fa0a7",
+  "vercel_project_id": "",
+  "vercel_deploy_id": "",
+  "verified_at": "2026-08-19T07:59:36Z"
+}
