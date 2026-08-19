@@ -1,0 +1,15 @@
+{
+  "prospect": "DCA MENUISERIE",
+  "slug": "dca-menuiserie",
+  "provider": "Netlify",
+  "url": "https://dca-menuiserie.netlify.app",
+  "http_status": 200,
+  "content_type": "text/html; charset=UTF-8",
+  "content_verified": true,
+  "rendering_verified": true,
+  "netlify_site_id": "77931cf6-8bf3-46ee-a505-b2a89ba56ac6",
+  "netlify_deploy_id": "6a856286f2cf5b30b909d216",
+  "vercel_project_id": "",
+  "vercel_deploy_id": "",
+  "verified_at": "2026-08-19T08:00:12Z"
+}
