@@ -1,0 +1,15 @@
+{
+  "prospect": "RÉNOVATION Dordogne",
+  "slug": "renovation-dordogne",
+  "provider": "Netlify",
+  "url": "https://renovation-dordogne.netlify.app",
+  "http_status": 200,
+  "content_type": "text/html; charset=UTF-8",
+  "content_verified": true,
+  "rendering_verified": true,
+  "netlify_site_id": "1b137aab-ec25-40fe-919d-b6d22bd97a8b",
+  "netlify_deploy_id": "6a86b4a2ae10d94c35279edf",
+  "vercel_project_id": "",
+  "vercel_deploy_id": "",
+  "verified_at": "2026-08-20T08:02:48Z"
+}
