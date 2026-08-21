@@ -1,0 +1,15 @@
+{
+  "prospect": "J2R — JARDIN DE ROMAIN",
+  "slug": "j2r-jardin-de-romain",
+  "provider": "Netlify",
+  "url": "https://j2r-jardin-de-romain.netlify.app",
+  "http_status": 200,
+  "content_type": "text/html; charset=UTF-8",
+  "content_verified": true,
+  "rendering_verified": true,
+  "netlify_site_id": "a33f68ab-c01a-4aff-a5b9-024ae8bee78f",
+  "netlify_deploy_id": "6a88067169cf7663fc92ffa2",
+  "vercel_project_id": "",
+  "vercel_deploy_id": "",
+  "verified_at": "2026-08-21T08:04:07Z"
+}
