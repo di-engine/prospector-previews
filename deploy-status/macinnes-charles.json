@@ -1,0 +1,15 @@
+{
+  "prospect": "MACINNES CHARLES",
+  "slug": "macinnes-charles",
+  "provider": "Vercel",
+  "url": "https://macinnes-charles.vercel.app",
+  "http_status": 200,
+  "content_type": "text/html; charset=utf-8",
+  "content_verified": true,
+  "rendering_verified": true,
+  "netlify_site_id": "e380425b-0859-45a7-8920-44c67367ca92",
+  "netlify_deploy_id": "",
+  "vercel_project_id": "prj_wmomvZnLn6FNFiV6Nk7Een42JU76",
+  "vercel_deploy_id": "dpl_sQr9uEL8F2bV5RUa62BLTuKWH261",
+  "verified_at": "2026-08-21T08:04:27Z"
+}
