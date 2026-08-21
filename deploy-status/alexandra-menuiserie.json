@@ -1,0 +1,15 @@
+{
+  "prospect": "ALEXANDRA MENUISERIE",
+  "slug": "alexandra-menuiserie",
+  "provider": "Netlify",
+  "url": "https://alexandra-menuiserie.netlify.app",
+  "http_status": 200,
+  "content_type": "text/html; charset=UTF-8",
+  "content_verified": true,
+  "rendering_verified": true,
+  "netlify_site_id": "028711fc-c227-425e-aeb7-dbcf004e1b52",
+  "netlify_deploy_id": "6a88064fbba7688b5f27d5a6",
+  "vercel_project_id": "",
+  "vercel_deploy_id": "",
+  "verified_at": "2026-08-21T08:03:33Z"
+}
